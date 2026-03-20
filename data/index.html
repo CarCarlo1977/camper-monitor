@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+  <title>Camper Monitor</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <div class="bar">
+    <button class="ham" onclick="tgM()">&#9776;</button>
+    <span class="logo">&#9875; CAMPER</span>
+    <div class="alm">
+      <span id="aO" class="ab ov">OVR</span>
+      <span id="aL" class="ab lo">LOW</span>
+      <span id="aC" class="ab cu">CUR</span>
+      <span id="simB" class="ab si" style="display:none">SIM</span>
+    </div>
+    <div class="r">
+      <span class="dot" id="dot"></span>
+      <span class="clk" id="clk">--:--</span>
+      <label class="tgl">
+        <input type="checkbox" id="thT" onchange="tT()">
+        <span class="sl"></span>
+      </label>
+    </div>
+  </div>
+
+  <div class="mov" id="mov" onclick="tgM()"></div>
+  <div class="mnu" id="mnu">
+    <button class="mc" onclick="tgM()">&times;</button>
+    <button class="act" onclick="gp('dash')">&#128200; Dashboard</button>
+    <button onclick="gp('mon')">&#128269; Monitor</button>
+    <button onclick="gp('cfg')">&#9881; Configurazione</button>
+    <button onclick="gp('ota')">&#128228; Aggiornamento</button>
+  </div>
+
+  <div id="dash" class="pg act">
+    <div class="ck">
+      <div class="cd">
+        <div class="cl">Batteria</div>
+        <div class="bat-row">
+          <div class="bv" id="vBv"><span id="vV">--</span><span class="u">V</span></div>
+          <div class="bat-secondary"><span id="iV">--</span><span class="u">A</span></div>
+        </div>
+        <div class="bat-info">
+          <span class="bat-state" id="stT">---</span>
+          <span class="bat-eta" id="etaV">--:--</span>
+          <span class="bat-w"><span id="wV">--</span> W</span>
+        </div>
+      </div>
+
+      <div class="cd">
+        <div class="cl">Serbatoi</div>
+        <div class="tk-row">
+          <div class="gauge-w">
+            <svg viewBox="0 0 200 110">
+              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--bg3)" stroke-width="12" stroke-linecap="round" />
+              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--ac2)" stroke-width="12" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251" id="gaugeArc" style="transition:stroke-dashoffset .8s" />
+              <g id="gaugeNeedle" class="gauge-needle" transform="rotate(-90,100,100)">
+                <line x1="100" y1="100" x2="100" y2="30" stroke="var(--rd)" stroke-width="2.5" stroke-linecap="round" />
+                <circle cx="100" cy="100" r="5" fill="var(--rd)" />
+              </g>
+              <text x="30" y="108" class="gauge-lbl">0</text>
+              <text x="63" y="32" class="gauge-lbl">1</text>
+              <text x="135" y="32" class="gauge-lbl">2</text>
+              <text x="170" y="108" class="gauge-lbl">3</text>
+              <text x="100" y="90" class="gauge-val" id="gVal">-/3</text>
+              <text x="100" y="108" class="gauge-lbl">GRIGIE</text>
+            </svg>
+          </div>
+          <div class="tb-col">
+            <div class="tb-i" id="tbI">OK</div>
+            <span class="tb-lbl">Nere</span>
+            <span class="tb-t" id="tbT" style="font-size:clamp(9px,1.4vmin,12px)">Libero</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="cd">
+        <div class="cl">Stato di Carica</div>
+        <div class="soc-w">
+          <div class="soc-r">
+            <svg viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="50" fill="none" stroke="var(--bg3)" stroke-width="10" />
+              <circle id="socA" cx="60" cy="60" r="50" fill="none" stroke="var(--ac)" stroke-width="10" stroke-dasharray="314" stroke-dashoffset="314" stroke-linecap="round" style="transition:stroke-dashoffset 1s,stroke .5s" />
+            </svg>
+            <div class="soc-rt">
+              <span class="soc-p" id="sP">--</span>
+              <span class="soc-lb">SOC</span>
+            </div>
+          </div>
+          <div class="soc-d">
+            <div class="rw"><span>Usati</span><span id="ahU">--</span></div>
+            <div class="rw"><span>Capacita</span><span id="ahC">--</span></div>
+            <div class="rw"><span>Residui</span><span id="ahL">--</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="cd">
+        <div class="cl">Min / Max</div>
+        <div class="mm-grid">
+          <div class="mm-item"><span class="mm-label">V min</span><span class="mm-val mm-min" id="vMn">--</span></div>
+          <div class="mm-item"><span class="mm-label">V max</span><span class="mm-val mm-max" id="vMx">--</span></div>
+          <div class="mm-item"><span class="mm-label">I min</span><span class="mm-val mm-min" id="iMn">--</span></div>
+          <div class="mm-item"><span class="mm-label">I max</span><span class="mm-val mm-max" id="iMx">--</span></div>
+        </div>
+        <div class="bg">
+          <button class="btn bo" style="font-size:9px;padding:2px 6px" onclick="rstMM()">Reset</button>
+        </div>
+      </div>
+
+      <div class="cd">
+        <div class="cl">Storico</div>
+        <div class="ch-tb">
+          <button class="ch-t act" onclick="sC('v',this)">V</button>
+          <button class="ch-t" onclick="sC('i',this)">A</button>
+        </div>
+        <div class="ch-bx">
+          <canvas id="cv"></canvas>
+        </div>
+      </div>
+
+      <div class="cd">
+        <div class="cl">Sistema</div>
+        <div class="sys-grid">
+          <div class="sys-item">
+            <div class="sys-label">RSSI</div>
+            <div class="sys-val" id="d-rs">--</div>
+          </div>
+          <div class="sys-item">
+            <div class="sys-label">Uptime</div>
+            <div class="sys-val" id="d-up">--</div>
+          </div>
+          <div class="sys-item">
+            <div class="sys-label">Heap</div>
+            <div class="sys-val" id="d-hp">--</div>
+          </div>
+          <div class="sys-item">
+            <div class="sys-label">INA228</div>
+            <div class="sys-val" id="d-ina">--</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="mon" class="pg">
+    <div class="mn">
+      <div class="mcard">
+        <h2>&#128267; Batteria</h2>
+        <div class="mr"><span class="ml">Tensione</span><span class="mv" id="m-v">--</span></div>
+        <div class="mr"><span class="ml">Corrente</span><span class="mv" id="m-i">--</span></div>
+        <div class="mr"><span class="ml">Potenza</span><span class="mv" id="m-w">--</span></div>
+        <div class="mr"><span class="ml">Stato</span><span class="mv" id="m-st">--</span></div>
+        <div class="mr"><span class="ml">ETA</span><span class="mv" id="m-eta">--</span></div>
+        <div class="m-bar">
+          <div class="m-bf" id="m-bar" style="width:0%"></div>
+          <div class="m-bt" id="m-soc">--</div>
+        </div>
+        <div class="mr"><span class="ml">Ah / Cap</span><span class="mv" id="m-ah">--</span></div>
+        <div class="m-al ov" id="m-aO">OVR</div>
+        <div class="m-al lo" id="m-aL">LOW</div>
+      </div>
+
+      <div class="mcard">
+        <h2>&#128202; Min / Max</h2>
+        <div class="mr"><span class="ml">V min</span><span class="mv" id="m-vn">--</span></div>
+        <div class="mr"><span class="ml">V max</span><span class="mv" id="m-vx">--</span></div>
+        <div class="mr"><span class="ml">I min</span><span class="mv" id="m-in">--</span></div>
+        <div class="mr"><span class="ml">I max</span><span class="mv" id="m-ix">--</span></div>
+        <div class="bg"><button class="btn bo" onclick="rstMM()">Reset</button></div>
+      </div>
+
+      <div class="mcard">
+        <h2>&#128167; Serbatoi</h2>
+        <div class="mr"><span class="ml">Grigie</span><span class="mv" id="m-tg">--</span></div>
+        <div class="mr"><span class="ml">Nere</span><span class="mv" id="m-tb">--</span></div>
+        <div class="mr"><span class="ml">ADC Nere</span><span class="mv" id="m-a0">--</span></div>
+        <div class="mr"><span class="ml">ADC G1</span><span class="mv" id="m-a1">--</span></div>
+        <div class="mr"><span class="ml">ADC G2</span><span class="mv" id="m-a2">--</span></div>
+        <div class="mr"><span class="ml">ADC G3</span><span class="mv" id="m-a3">--</span></div>
+      </div>
+
+      <div class="mcard">
+        <h2>&#128421; Sistema</h2>
+        <div class="mr"><span class="ml">RSSI</span><span class="mv" id="m-rs">--</span></div>
+        <div class="mr"><span class="ml">Uptime</span><span class="mv" id="m-up">--</span></div>
+        <div class="mr"><span class="ml">Heap</span><span class="mv" id="m-hp">--</span></div>
+        <div class="mr"><span class="ml">INA228</span><span class="mv" id="m-ina">--</span></div>
+        <div class="mr"><span class="ml">Modo WiFi</span><span class="mv" id="m-wm">--</span></div>
+        <div class="mr"><span class="ml">IP</span><span class="mv" id="m-ip">--</span></div>
+        <div class="mr"><span class="ml">AP IP</span><span class="mv" id="m-apip">--</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="cfg" class="pg">
+    <div class="cfg">
+      <div class="cs">
+        <h3>Batteria</h3>
+        <div class="cr"><label>Tipo</label><select id="c-bt"></select></div>
+        <div class="cr"><label>Capacita Ah</label><input type="number" id="c-cap" step="1" min="1" max="2000"></div>
+        <div class="cr"><label>Shunt Ohm</label><input type="number" id="c-sh" step="0.00001" min="0.00001" max="0.1"></div>
+        <div class="cr"><label>I max A</label><input type="number" id="c-mi" step="1" min="1" max="1000"></div>
+      </div>
+
+      <div class="cs">
+        <h3>Soglie</h3>
+        <div class="cr"><label>V alta OVR</label><input type="number" id="c-vh" step="0.1" min="10" max="20"></div>
+        <div class="cr"><label>V bassa LOW</label><input type="number" id="c-vl" step="0.1" min="5" max="15"></div>
+        <div class="cr"><label>I alta CUR</label><input type="number" id="c-ih" step="1" min="0" max="500"></div>
+      </div>
+
+      <div class="cs">
+        <h3>Serbatoi</h3>
+        <div class="cr">
+          <label>Abilita</label>
+          <label class="tgl"><input type="checkbox" id="c-te"><span class="sl"></span></label>
+        </div>
+        <div class="cr">
+          <label>Soglia nere</label>
+          <input type="number" id="c-tb" min="0" max="4095">
+          <span class="lv" id="c-la0">--</span>
+        </div>
+        <div class="cr">
+          <label>Soglia grigie</label>
+          <input type="number" id="c-tg" min="0" max="4095">
+          <span class="lv" id="c-la1">--</span>
+        </div>
+        <div style="font-size:9px;color:var(--dm)">
+          G1=<span id="c-la1b">--</span> G2=<span id="c-la2">--</span> G3=<span id="c-la3">--</span>
+        </div>
+      </div>
+
+      <div class="cs">
+        <h3>GPIO</h3>
+        <div class="cr"><label>I2C SDA</label><input type="number" id="c-sda" min="0" max="39"></div>
+        <div class="cr"><label>I2C SCL</label><input type="number" id="c-scl" min="0" max="39"></div>
+        <div class="cr"><label>Tank nere</label><input type="number" id="c-pb" min="0" max="39"></div>
+        <div class="cr"><label>Tank G1</label><input type="number" id="c-pg1" min="0" max="39"></div>
+        <div class="cr"><label>Tank G2</label><input type="number" id="c-pg2" min="0" max="39"></div>
+        <div class="cr"><label>Tank G3</label><input type="number" id="c-pg3" min="0" max="39"></div>
+        <div class="cr"><label>EXCITE</label><input type="number" id="c-pe" min="0" max="39"></div>
+        <div style="font-size:9px;color:var(--yw)">GPIO/WiFi: riavvio auto</div>
+      </div>
+
+      <div class="cs">
+        <h3>WiFi</h3>
+        <div class="cr">
+          <label>Modo AP</label>
+          <label class="tgl"><input type="checkbox" id="c-wap"><span class="sl"></span></label>
+        </div>
+        <div class="cr"><label>AP SSID</label><input type="text" id="c-ws" maxlength="32"></div>
+        <div class="cr"><label>AP Pass</label><input type="text" id="c-wp" maxlength="64"></div>
+        <div class="cr">
+            <label>STA SSID</label>
+            <div style="display:flex; flex:1; gap:4px">
+              <input type="text" id="c-wss" maxlength="32" style="flex:1">
+              <button class="btn bo" onclick="scanWifi()" id="btn-scan" style="padding:2px 8px; font-size:10px">SCAN</button>
+            </div>
+          </div>
+          <div id="wifi-list" style="display:none; background:var(--bg3); border:1px solid var(--brd); border-radius:3px; margin:4px 0 8px 140px; max-height:120px; overflow-y:auto"></div>
+        <div class="cr"><label>STA Pass</label><input type="text" id="c-wsp" maxlength="64"></div>
+      </div>
+
+      <div class="bg">
+        <button class="btn bp" onclick="saveCfg()">Salva</button>
+        <button class="btn bo" onclick="ldCfg()">Annulla</button>
+        <button class="btn bd" onclick="reboot()">Riavvia</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ota" class="pg">
+    <div class="ota">
+      <div class="ob">
+        <h3>Firmware .bin</h3>
+        <input type="file" id="fw-f" accept=".bin" style="font-size:11px">
+        <div class="bg"><button class="btn bp" onclick="otaUp('firmware')">Carica</button></div>
+        <div class="op" id="fw-p">
+          <div class="o-bar">
+            <div class="o-bf" id="fw-b" style="width:0%"></div>
+            <div class="o-bt" id="fw-t">0%</div>
+          </div>
+        </div>
+      </div>
+      <div class="ob">
+        <h3>Filesystem .bin</h3>
+        <input type="file" id="fs-f" accept=".bin" style="font-size:11px">
+        <div class="bg"><button class="btn bp" onclick="otaUp('filesystem')">Carica</button></div>
+        <div class="op" id="fs-p">
+          <div class="o-bar">
+            <div class="o-bf" id="fs-b" style="width:0%"></div>
+            <div class="o-bt" id="fs-t">0%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="script.js"></script>
+</body>
+
+</html>
