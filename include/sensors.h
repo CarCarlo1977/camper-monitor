@@ -19,6 +19,8 @@ public:
 
   float batteryCapacityAh = 100;
   float batterySOC = 100, ahUsed = 0;
+  float socV  = 100;   // SOC da tensione (realtime)
+  float socAh = 100;   // SOC da coulomb counter
   unsigned long lastCoulombMs = 0;
 
   bool inaPresent = false, simMode = false;
@@ -27,8 +29,8 @@ public:
   static const int HIST_SIZE = 120;
   struct HistPoint { float v; float i; };
   HistPoint history[HIST_SIZE];
-  int histHead  = 0;   // prossimo slot da scrivere
-  int histCount = 0;   // quanti slot validi
+  int histHead  = 0;
+  int histCount = 0;
 
   void init(int sda, int scl);
   void readBattery();

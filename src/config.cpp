@@ -14,6 +14,7 @@ void Config::load() {
   batteryType       = prefs.getUChar("batType",   0);
   shuntOhm          = prefs.getFloat("shuntOhm", 0.00025f);
   maxCurrentA       = prefs.getFloat("maxI",      200.0f);
+  nominalVoltage    = prefs.getFloat("nomV",      12.0f);
 
   tankBlackThreshold  = prefs.getUShort("tBlkThr", 750);
   tankGrayThreshold   = prefs.getUShort("tGryThr", 940);
@@ -59,6 +60,7 @@ void Config::save() {
   prefs.putUChar("batType",  batteryType);
   prefs.putFloat("shuntOhm", shuntOhm);
   prefs.putFloat("maxI",     maxCurrentA);
+  prefs.putFloat("nomV",     nominalVoltage);
 
   prefs.putUShort("tBlkThr", tankBlackThreshold);
   prefs.putUShort("tGryThr", tankGrayThreshold);

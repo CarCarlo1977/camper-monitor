@@ -96,6 +96,8 @@
             <div class="rw"><span>Usati</span><span id="ahU">--</span></div>
             <div class="rw"><span>Capacita</span><span id="ahC">--</span></div>
             <div class="rw"><span>Residui</span><span id="ahL">--</span></div>
+            <div class="rw"><span>SOC (V)</span><span id="socVV" style="color:var(--ac)">--</span></div>
+            <div class="rw"><span>SOC (Ah)</span><span id="socAhV" style="color:var(--gn)">--</span></div>
           </div>
         </div>
       </div>
@@ -142,6 +144,14 @@
           <div class="sys-item">
             <div class="sys-label">INA228</div>
             <div class="sys-val" id="d-ina">--</div>
+          </div>
+          <div class="sys-item sys-full">
+            <div class="sys-label">AP IP</div>
+            <div class="sys-val" id="d-apip">--</div>
+          </div>
+          <div class="sys-item sys-full">
+            <div class="sys-label">STA IP</div>
+            <div class="sys-val" id="d-stip">--</div>
           </div>
         </div>
       </div>
@@ -205,6 +215,7 @@
         <div class="cr"><label>Tipo</label><select id="c-bt"></select></div>
         <div class="cr"><label>Capacita Ah</label><input type="number" id="c-cap" step="1" min="1" max="2000"></div>
         <div class="cr"><label>Shunt Ohm</label><input type="number" id="c-sh" step="0.00001" min="0.00001" max="0.1"></div>
+        <div class="cr"><label>V nominale</label><select id="c-nv"></select></div>
         <div class="cr"><label>I max A</label><input type="number" id="c-mi" step="1" min="1" max="1000"></div>
       </div>
 

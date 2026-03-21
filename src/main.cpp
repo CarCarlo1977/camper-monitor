@@ -10,39 +10,35 @@
 
 const unsigned long SENSOR_INTERVAL  =   1000UL;
 const unsigned long SERIAL_INTERVAL  =   2000UL;
-const unsigned long SAVE_INTERVAL    = 300000UL;  // 5 min
-const unsigned long WIFI_RETRY_MS    =  30000UL;  // riprova STA ogni 30s
+const unsigned long SAVE_INTERVAL    = 300000UL;  // 5 min (min/max)
+const unsigned long AH_SAVE_INTERVAL  =  10000UL;  // 10 sec (ahUsed)
 
-unsigned long lastSensorMs = 0, lastSerialMs = 0, lastSaveMs = 0, lastWifiRetryMs = 0;
+unsigned long lastSensorMs = 0, lastSerialMs = 0, lastSaveMs = 0, lastAhSaveMs = 0;
 
 void setupWiFi() {
-  // AP+STA sempre attivi contemporaneamente
-  WiFi.mode(WIFI_AP_STA);
-
-  // --- AP sempre attivo ---
-  IPAddress apIP(192,168,4,1), apGW(192,168,4,1), apSN(255,255,255,0);
-  WiFi.softAPConfig(apIP, apGW, apSN);
-  WiFi.softAP(config.wifiSSID.c_str(), config.wifiPassword.c_str(), 1, false, 4);
-  Serial.printf("[WiFi] AP: %s  IP: %s\n",
-                config.wifiSSID.c_str(),
-                WiFi.softAPIP().toString().c_str());
-
-  // --- STA: connette solo se SSID configurato ---
-  if (config.wifiSTA_SSID.length() > 0) {
+  if (config.wifiAPMode) {
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(config.wifiSSID.c_str(), config.wifiPassword.c_str(), 1, false, 4);
+    IPAddress ip(192,168,4,1), gw(192,168,4,1), sn(255,255,255,0);
+    WiFi.softAPConfig(ip, gw, sn);
+    Serial.printf("[WiFi] AP: %s  IP: %s\n", config.wifiSSID.c_str(),
+                  WiFi.softAPIP().toString().c_str());
+  } else {
+    WiFi.mode(WIFI_STA);
     WiFi.begin(config.wifiSTA_SSID.c_str(), config.wifiSTA_Password.c_str());
-    Serial.printf("[WiFi] STA connessione a %s", config.wifiSTA_SSID.c_str());
+    Serial.printf("[WiFi] Connessione a %s", config.wifiSTA_SSID.c_str());
     unsigned long t0 = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t0 < 10000) {
       delay(500); Serial.print(".");
     }
     if (WiFi.status() == WL_CONNECTED) {
-      Serial.printf("\n[WiFi] STA IP: %s\n", WiFi.localIP().toString().c_str());
+      Serial.printf("\n[WiFi] Connesso IP: %s\n", WiFi.localIP().toString().c_str());
     } else {
-      Serial.println("\n[WiFi] STA fallita - solo AP attivo");
-      WiFi.disconnect(false);
+      Serial.println("\n[WiFi] Fallito, AP di fallback");
+      WiFi.mode(WIFI_AP);
+      WiFi.softAP(config.wifiSSID.c_str(), config.wifiPassword.c_str());
+      Serial.printf("[WiFi] AP IP: %s\n", WiFi.softAPIP().toString().c_str());
     }
-  } else {
-    Serial.println("[WiFi] STA SSID non configurato - solo AP attivo");
   }
 }
 
@@ -55,17 +51,14 @@ void sendSerialJSON() {
     "\"imin\":%.1f,\"imax\":%.1f,"
     "\"tank_gray\":%u,\"tank_black\":%u,"
     "\"adc_blk\":%u,\"adc_g1\":%u,\"adc_g2\":%u,\"adc_g3\":%u,"
-    "\"sim\":%u,\"heap\":%u,"
-    "\"sta\":%u,\"sta_ip\":\"%s\"}",
+    "\"sim\":%u,\"heap\":%u}",
     sensors.voltageBus, sensors.currentA, sensors.powerW,
     sensors.batterySOC, sensors.ahUsed,
     sensors.voltageMin, sensors.voltageMax,
     sensors.currentMin, sensors.currentMax,
     sensors.tankGray, sensors.tankBlack,
     sensors.tankADC[0], sensors.tankADC[1], sensors.tankADC[2], sensors.tankADC[3],
-    sensors.simMode ? 1 : 0, ESP.getFreeHeap(),
-    WiFi.status() == WL_CONNECTED ? 1 : 0,
-    WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString().c_str() : "");
+    sensors.simMode ? 1 : 0, ESP.getFreeHeap());
   Serial.println(buf);
 }
 
@@ -109,22 +102,17 @@ void loop() {
     sendSerialJSON();
   }
 
-  // Salvataggio periodico min/max e Ah
+  // Salvataggio periodico min/max (ogni 5 min)
   if (now - lastSaveMs >= SAVE_INTERVAL) {
     lastSaveMs = now;
     config.saveMinMax(sensors.voltageMin, sensors.voltageMax,
                       sensors.currentMin, sensors.currentMax);
-    config.saveAhUsed(sensors.ahUsed);
   }
 
-  // Riconnessione STA automatica se cade la rete
-  if (config.wifiSTA_SSID.length() > 0 &&
-      WiFi.status() != WL_CONNECTED &&
-      now - lastWifiRetryMs >= WIFI_RETRY_MS) {
-    lastWifiRetryMs = now;
-    Serial.println("[WiFi] STA disconnessa, riconnessione...");
-    WiFi.disconnect(false);
-    WiFi.begin(config.wifiSTA_SSID.c_str(), config.wifiSTA_Password.c_str());
+  // Salvataggio ahUsed ogni 10 secondi per SOC preciso dopo reboot
+  if (now - lastAhSaveMs >= AH_SAVE_INTERVAL) {
+    lastAhSaveMs = now;
+    config.saveAhUsed(sensors.ahUsed);
   }
 
   delay(10);

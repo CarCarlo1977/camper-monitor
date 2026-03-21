@@ -11,14 +11,18 @@ struct BatteryProfile {
   const char* name;
   float coulombEff;
   float peukertExp;
+  float nominalV;      // tensione nominale (V)
+  float fullV;         // tensione a piena carica (V)
+  float emptyV;        // tensione a scarica (V)
 };
 
+// nominalV / fullV / emptyV per stima SOC da tensione
 static const BatteryProfile PROFILES[BAT_TYPE_COUNT] = {
-  {"AGM",     0.85f, 1.25f},
-  {"GEL",     0.85f, 1.20f},
-  {"Pb-open", 0.80f, 1.30f},
-  {"LiFePO4", 0.99f, 1.00f},
-  {"Li-Ion",  0.98f, 1.00f}
+  {"AGM",     0.85f, 1.25f, 12.0f, 12.7f, 11.6f},
+  {"GEL",     0.85f, 1.20f, 12.0f, 12.7f, 11.6f},
+  {"Pb-open", 0.80f, 1.30f, 12.0f, 12.7f, 11.4f},
+  {"LiFePO4", 0.99f, 1.00f, 12.8f, 14.4f, 12.0f},
+  {"Li-Ion",  0.98f, 1.00f, 11.1f, 12.6f, 10.5f}
 };
 
 class Config {
@@ -31,6 +35,7 @@ public:
   uint8_t batteryType     = 0;
   float shuntOhm          = 0.00025f;
   float maxCurrentA        = 200.0f;
+  float nominalVoltage     = 12.0f;  // tensione nominale configurabile
 
   // Serbatoi
   uint16_t tankBlackThreshold = 750;

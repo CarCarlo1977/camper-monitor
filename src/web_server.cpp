@@ -27,7 +27,9 @@ void WebServerManager::setupAPI() {
     doc["v"]    = sensors.voltageBus;
     doc["i"]    = sensors.currentA;
     doc["w"]    = sensors.powerW;
-    doc["soc"]  = sensors.batterySOC;
+    doc["soc"]   = sensors.batterySOC;   // SOC fuso
+    doc["socV"]  = sensors.socV;          // SOC da tensione
+    doc["socAh"] = sensors.socAh;         // SOC da coulomb counter
     doc["ah"]   = sensors.ahUsed;
     doc["cap"]  = sensors.batteryCapacityAh;
 
@@ -51,9 +53,15 @@ void WebServerManager::setupAPI() {
     doc["imin"] = sensors.currentMin;
     doc["imax"] = sensors.currentMax;
 
-    doc["alm_ovr"] = (sensors.voltageBus > config.vHighThreshold) ? 1 : 0;
-    doc["alm_low"] = (sensors.voltageBus < config.vLowThreshold)  ? 1 : 0;
+    // Soglie: usa valori config se personalizzati, altrimenti deriva da profilo
+    const BatteryProfile& bp = PROFILES[config.batteryType];
+    float vHigh = (config.vHighThreshold > 0) ? config.vHighThreshold : bp.fullV + 0.2f;
+    float vLow  = (config.vLowThreshold  > 0) ? config.vLowThreshold  : bp.emptyV;
+    doc["alm_ovr"] = (sensors.voltageBus > vHigh) ? 1 : 0;
+    doc["alm_low"] = (sensors.voltageBus < vLow && sensors.voltageBus > 1.0f) ? 1 : 0;
     doc["alm_cur"] = (fabsf(sensors.currentA) > config.iHighThreshold) ? 1 : 0;
+    doc["v_high"]  = vHigh;
+    doc["v_low"]   = vLow;
 
     doc["tank_gray"]  = sensors.tankGray;
     doc["tank_black"] = sensors.tankBlack;
@@ -68,6 +76,12 @@ void WebServerManager::setupAPI() {
     doc["uptime"]    = millis() / 1000;
     doc["heap"]      = ESP.getFreeHeap();
 
+    bool staOk = (WiFi.status() == WL_CONNECTED);
+    doc["sta"]      = staOk ? 1 : 0;
+    doc["sta_ip"]   = staOk ? WiFi.localIP().toString() : String("");
+    doc["ap_ip"]    = WiFi.softAPIP().toString();
+    doc["wifiMode"] = "AP+STA";
+
     String json;
     serializeJson(doc, json);
     req->send(200, "application/json", json);
@@ -76,11 +90,8 @@ void WebServerManager::setupAPI() {
   // --- Storico per grafico ---
   httpServer.on("/api/history", HTTP_GET, [](AsyncWebServerRequest *req) {
     int count = sensors.histCount;
-    int start = (count < SensorManager::HIST_SIZE)
-                ? 0
-                : sensors.histHead;
+    int start = (count < SensorManager::HIST_SIZE) ? 0 : sensors.histHead;
     // Formato {"voltage":[{"v":4.62},...], "current":[{"v":0.1},...]}
-    // Compatibile con HistoryData Android (DataPoint.v) e frontend JS
     String json = "{";
     json += "\"voltage\":[";
     for (int n = 0; n < count; n++) {
@@ -114,6 +125,7 @@ void WebServerManager::setupAPI() {
     doc["batType"]   = config.batteryType;
     doc["shuntOhm"]  = config.shuntOhm;
     doc["maxI"]      = config.maxCurrentA;
+    doc["nomV"]      = config.nominalVoltage;
 
     doc["tBlkThr"]   = config.tankBlackThreshold;
     doc["tGryThr"]   = config.tankGrayThreshold;
@@ -133,9 +145,11 @@ void WebServerManager::setupAPI() {
     doc["wStaSSID"]  = config.wifiSTA_SSID;
     doc["wStaPass"]  = config.wifiSTA_Password;
 
-    // Nomi profili batteria
+    // Nomi profili batteria con tensioni
     JsonArray bats = doc.createNestedArray("batTypes");
     for (int i = 0; i < BAT_TYPE_COUNT; i++) bats.add(PROFILES[i].name);
+    JsonArray batNomV = doc.createNestedArray("batNomV");
+    for (int i = 0; i < BAT_TYPE_COUNT; i++) batNomV.add(PROFILES[i].nominalV);
 
     // ADC live per calibrazione
     doc["adc_blk"] = sensors.tankADC[0];
@@ -168,6 +182,7 @@ void WebServerManager::setupAPI() {
       if (doc.containsKey("batType"))  config.batteryType       = doc["batType"];
       if (doc.containsKey("shuntOhm")) { config.shuntOhm = doc["shuntOhm"]; sensors.reInitINA(); }
       if (doc.containsKey("maxI"))     { config.maxCurrentA = doc["maxI"]; sensors.reInitINA(); }
+      if (doc.containsKey("nomV"))     config.nominalVoltage = doc["nomV"];
 
       if (doc.containsKey("tBlkThr")) config.tankBlackThreshold = doc["tBlkThr"];
       if (doc.containsKey("tGryThr")) config.tankGrayThreshold  = doc["tGryThr"];
