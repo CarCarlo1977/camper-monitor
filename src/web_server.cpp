@@ -33,16 +33,16 @@ void WebServerManager::setupAPI() {
     doc["ah"]   = sensors.ahUsed;
     doc["cap"]  = sensors.batteryCapacityAh;
 
-    if (sensors.currentA > 0.5f)       doc["state"] = "Charge";
-    else if (sensors.currentA < -0.5f) doc["state"] = "Discharge";
+    if (sensors.currentA > 0.1f)       doc["state"] = "Charge";
+    else if (sensors.currentA < -0.1f) doc["state"] = "Discharge";
     else                                doc["state"] = "Idle";
 
     // ETA
     char eta[16] = "--:--";
-    if (sensors.currentA < -0.5f) {
+    if (sensors.currentA < -0.1f) {
       float h = (sensors.batteryCapacityAh - sensors.ahUsed) / fabsf(sensors.currentA);
       snprintf(eta, 16, "%dh%02dm", (int)h, (int)((h - (int)h) * 60));
-    } else if (sensors.currentA > 0.5f) {
+    } else if (sensors.currentA > 0.1f) {
       float h = sensors.ahUsed / sensors.currentA;
       snprintf(eta, 16, "%dh%02dm", (int)h, (int)((h - (int)h) * 60));
     }

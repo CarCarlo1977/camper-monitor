@@ -345,13 +345,13 @@ body {
 
 .bat-secondary {
   font-family: var(--mono);
-  font-size: clamp(16px, 3.5vmin, 30px);
+  font-size: clamp(40px, 3.5vmin, 30px);
   line-height: 1;
   color: var(--tx)
 }
 
 .bat-secondary .u {
-  font-size: .5em;
+  font-size: 0.6em;
   color: var(--dm)
 }
 
@@ -364,7 +364,7 @@ body {
 }
 
 .bat-state {
-  font-size: clamp(12px, 2.2vmin, 18px);
+  font-size: clamp(10px, 7vmin, 28px);
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase
@@ -372,13 +372,13 @@ body {
 
 .bat-eta {
   font-family: var(--mono);
-  font-size: clamp(12px, 2vmin, 16px);
+  font-size: clamp(28px, 2vmin, 16px);
   color: var(--gn)
 }
 
 .bat-w {
   font-family: var(--mono);
-  font-size: clamp(11px, 1.8vmin, 15px);
+  font-size: clamp(28px, 1.8vmin, 15px);
   color: var(--dm)
 }
 
@@ -930,14 +930,14 @@ body {
   padding: 0;
 }
 .v-alert-dot {
-  width: clamp(6px, 1.2vmin, 9px);
-  height: clamp(6px, 1.2vmin, 9px);
+  width: clamp(20px, 1.2vmin, 9px);
+  height: clamp(20px, 1.2vmin, 9px);
   border-radius: 50%;
   flex-shrink: 0;
   transition: background .3s;
 }
 .v-alert-msg {
-  font-size: clamp(9px, 1.5vmin, 12px);
+  font-size: clamp(28px, 1.5vmin, 12px);
   letter-spacing: 1.5px;
   text-transform: uppercase;
   font-weight: 700;

@@ -34,8 +34,7 @@ void SensorManager::init(int sda, int scl) {
   currentMin = config.currentMinSeen;
   currentMax = config.currentMaxSeen;
 
-  // Stima SOC iniziale da tensione (dopo configure per lettura valida)
-  // Sovrascrive ahUsedSaved solo se tensione è plausibile per il profilo
+  // Stima SOC iniziale da OCV (dopo configure per lettura valida)
   if (inaPresent) {
     delay(300); // attende AVG_256 prima conversione (~270ms)
     float vNow = ina.getBusVoltage();
@@ -72,7 +71,6 @@ void SensorManager::readBattery() {
     voltageBus = (isnan(vraw) || vraw < 0) ? 0 : vraw;
 
     float iraw = ina.getCurrent();
-    Serial.printf("[DEBUG] iraw=%.4f vraw=%.4f\n", iraw, vraw);
     if (isnan(iraw)) {
       currentA = 0;
     } else {
@@ -118,12 +116,16 @@ void SensorManager::updateCoulombCounter() {
   lastCoulombMs = now;
   if (simMode) dtH *= 10.0f;
 
-  float eff = PROFILES[config.batteryType].coulombEff;
-  float k   = PROFILES[config.batteryType].peukertExp;
+  const BatteryProfile& p = PROFILES[config.batteryType];
+  float eff = p.coulombEff;
+  float k   = p.peukertExp;
 
+  // === Coulomb counter con correzione Peukert ===
   if (currentA > 0.05f) {
+    // Carica: recupera capacità
     ahUsed -= currentA * eff * dtH;
   } else if (currentA < -0.05f) {
+    // Scarica con correzione Peukert
     float iAbs = fabsf(currentA);
     float iRef  = batteryCapacityAh / 20.0f;
     float iCorr = (k > 1.0f && iRef > 0)
@@ -131,25 +133,44 @@ void SensorManager::updateCoulombCounter() {
                   : iAbs;
     ahUsed += iCorr * dtH;
   }
-
   ahUsed = constrain(ahUsed, 0.0f, batteryCapacityAh);
 
   // SOC da coulomb counter
   socAh = constrain(100.0f * (1.0f - ahUsed / batteryCapacityAh), 0.0f, 100.0f);
   if (isnan(socAh)) socAh = 50.0f;
 
-  // SOC da tensione in realtime
-  const BatteryProfile& p = PROFILES[config.batteryType];
+  // === SOC da tensione con compensazione voltage sag (OCV stimato) ===
+  // Vmis = OCV - I*Ri  →  OCV = Vmis + I*Ri
+  // currentA > 0 (carica): tensione sovrastimata → OCV = Vmis - I*Ri
+  // currentA < 0 (scarica): tensione sottostimata → OCV = Vmis + |I|*Ri
+  // In entrambi i casi: OCV = Vmis - currentA * Ri  (segno già incluso)
   float vRange = p.fullV - p.emptyV;
   if (vRange > 0.1f && voltageBus > 1.0f) {
-    socV = constrain((voltageBus - p.emptyV) / vRange * 100.0f, 0.0f, 100.0f);
+    // Ri scala inversamente con la capacità
+    float Ri = p.internalR * (100.0f / batteryCapacityAh);
+    float ocv = voltageBus - (currentA * Ri);
+    ocv = constrain(ocv, p.emptyV - 1.0f, p.fullV + 1.0f);
+    socV = constrain((ocv - p.emptyV) / vRange * 100.0f, 0.0f, 100.0f);
   } else {
     socV = socAh;
   }
 
-  // SOC fuso: 70% coulomb + 30% tensione se tensione è nel range plausibile
+  // === Fusione adattiva SOC ===
+  // A riposo (|I| < 0.5A): OCV affidabile → peso maggiore a socV
+  // Sotto carico leggero: mix bilanciato
+  // Sotto carico pesante: coulomb counter affidabile → peso quasi tutto su socAh
   bool vInRange = (voltageBus >= (p.emptyV - 0.5f)) && (voltageBus <= (p.fullV + 0.5f));
-  batterySOC = vInRange ? (0.7f * socAh + 0.3f * socV) : socAh;
+  if (vInRange) {
+    float iAbs = fabsf(currentA);
+    float wV = (iAbs < 0.5f)  ? 0.6f :   // riposo: 60% tensione OCV
+               (iAbs < 5.0f)  ? 0.2f :   // carico leggero: 20%
+               (iAbs < 20.0f) ? 0.1f :   // carico medio: 10%
+                                 0.05f;   // carico pesante: 5%
+    batterySOC = (1.0f - wV) * socAh + wV * socV;
+  } else {
+    // Tensione fuori range plausibile (USB, disconnesso): solo coulomb counter
+    batterySOC = socAh;
+  }
   batterySOC = constrain(batterySOC, 0.0f, 100.0f);
 }
 

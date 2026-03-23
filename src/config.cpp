@@ -15,7 +15,7 @@ void Config::load() {
   shuntOhm          = prefs.getFloat("shuntOhm", 0.00025f);
   maxCurrentA       = prefs.getFloat("maxI",      200.0f);
   nominalVoltage    = prefs.getFloat("nomV",      12.0f);
-  currentScale      = prefs.getFloat("iScale",    4.85f);
+  currentScale      = prefs.getFloat("iScale",    1.0f);
 
   tankBlackThreshold  = prefs.getUShort("tBlkThr", 750);
   tankGrayThreshold   = prefs.getUShort("tGryThr", 940);
