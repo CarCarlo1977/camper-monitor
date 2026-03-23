@@ -13,35 +13,12 @@ void SensorManager::init(int sda, int scl) {
     Serial.println("[Sensors] INA228 non trovato - simulazione");
   } else {
     inaPresent = true; simMode = false;
-    ina.configure(ADCRange::RANGE_163MV, ConvTime::CT_540US,
-                  ConvTime::CT_540US, AVGCount::AVG_64);
+    // RANGE_163MV: range standard, formula CAL semplice e verificata
+    // AVG_256 + CT_1052US: filtra rumore EMI sui cavi di sense
+    ina.configure(ADCRange::RANGE_163MV, ConvTime::CT_1052US,
+                  ConvTime::CT_1052US, AVGCount::AVG_256);
     ina.setShuntCal(config.maxCurrentA, config.shuntOhm);
     Serial.println("[Sensors] INA228 OK");
-  }
-
-  // Stima SOC iniziale da tensione
-  // Eseguito sempre all'avvio se la tensione è nel range plausibile per il profilo
-  {
-    delay(150); // attende prima conversione ADC valida
-    float vNow = inaPresent ? ina.getBusVoltage() : 0.0f;
-    const BatteryProfile& p = PROFILES[config.batteryType];
-    float range = p.fullV - p.emptyV;
-    // Accetta la lettura solo se la tensione è nel range plausibile (emptyV-1V ... fullV+1V)
-    bool vPlausible = !isnan(vNow) && vNow >= (p.emptyV - 1.0f) && vNow <= (p.fullV + 1.0f);
-    if (vPlausible && range > 0.1f) {
-      float soc = constrain((vNow - p.emptyV) / range, 0.0f, 1.0f);
-      ahUsed = batteryCapacityAh * (1.0f - soc);
-      Serial.printf("[Sensors] SOC init da V=%.2f -> %.1f%%\n", vNow, soc * 100);
-    } else {
-      // Tensione fuori range (es. USB 5V) — usa valore NVS o default 50%
-      if (config.ahUsedSaved > 0.0f && config.ahUsedSaved <= batteryCapacityAh) {
-        ahUsed = config.ahUsedSaved;
-        Serial.printf("[Sensors] SOC da NVS: ahUsed=%.1f\n", ahUsed);
-      } else {
-        ahUsed = batteryCapacityAh * 0.5f; // default 50% se tutto ignoto
-        Serial.println("[Sensors] SOC default 50% (tensione non plausibile)");
-      }
-    }
   }
 
   pinMode(config.pinTankExcite, OUTPUT);
@@ -51,14 +28,37 @@ void SensorManager::init(int sda, int scl) {
   pinMode(config.pinTankGray2, INPUT);
   pinMode(config.pinTankGray3, INPUT);
 
-  // Carica stato persistente
+  // Carica stato persistente min/max
   voltageMin = config.voltageMinSeen;
   voltageMax = config.voltageMaxSeen;
   currentMin = config.currentMinSeen;
   currentMax = config.currentMaxSeen;
-  ahUsed = config.ahUsedSaved;
+
+  // Stima SOC iniziale da tensione (dopo configure per lettura valida)
+  // Sovrascrive ahUsedSaved solo se tensione è plausibile per il profilo
+  if (inaPresent) {
+    delay(300); // attende AVG_256 prima conversione (~270ms)
+    float vNow = ina.getBusVoltage();
+    const BatteryProfile& p = PROFILES[config.batteryType];
+    float vRange = p.fullV - p.emptyV;
+    bool vPlausible = !isnan(vNow) && vNow >= (p.emptyV - 1.0f) && vNow <= (p.fullV + 1.0f);
+    if (vPlausible && vRange > 0.1f) {
+      float soc = constrain((vNow - p.emptyV) / vRange, 0.0f, 1.0f);
+      ahUsed = batteryCapacityAh * (1.0f - soc);
+      Serial.printf("[Sensors] SOC init da V=%.2f -> %.1f%%\n", vNow, soc * 100.0f);
+    } else if (config.ahUsedSaved > 0.0f && config.ahUsedSaved <= batteryCapacityAh) {
+      ahUsed = config.ahUsedSaved;
+      Serial.printf("[Sensors] SOC da NVS: ahUsed=%.1f\n", ahUsed);
+    } else {
+      ahUsed = batteryCapacityAh * 0.5f;
+      Serial.println("[Sensors] SOC default 50%");
+    }
+  } else {
+    ahUsed = config.ahUsedSaved > 0.0f ? config.ahUsedSaved : batteryCapacityAh * 0.5f;
+  }
+
   lastCoulombMs = millis();
-  tankTimer = millis();
+  tankTimer     = millis();
 }
 
 void SensorManager::reInitINA() {
@@ -70,10 +70,20 @@ void SensorManager::readBattery() {
   if (inaPresent && !simMode) {
     float vraw = ina.getBusVoltage();
     voltageBus = (isnan(vraw) || vraw < 0) ? 0 : vraw;
+
     float iraw = ina.getCurrent();
-    currentA = isnan(iraw) ? 0 : iraw;
+    Serial.printf("[DEBUG] iraw=%.4f vraw=%.4f\n", iraw, vraw);
+    if (isnan(iraw)) {
+      currentA = 0;
+    } else {
+      // Scala corrente: corregge errore sistematico di calibrazione shunt
+      float scaled = iraw * config.currentScale;
+      // Dead-band 0.02A dopo scala
+      currentA = (fabsf(scaled) < 0.02f) ? 0.0f : scaled;
+    }
     powerW = voltageBus * currentA;
   } else {
+    // Simulazione
     static unsigned long simStart = 0;
     static uint8_t simPhase = 0;
     if (simStart == 0) simStart = millis();
@@ -93,12 +103,12 @@ void SensorManager::readBattery() {
 
   if (voltageBus < voltageMin) voltageMin = voltageBus;
   if (voltageBus > voltageMax) voltageMax = voltageBus;
-  if (currentA < currentMin)   currentMin = currentA;
-  if (currentA > currentMax)   currentMax = currentA;
+  if (currentA   < currentMin) currentMin = currentA;
+  if (currentA   > currentMax) currentMax = currentA;
 
-  // Aggiorna buffer storico circolare
+  // Buffer storico circolare per grafico
   history[histHead] = { voltageBus, currentA };
-  histHead = (histHead + 1) % HIST_SIZE;
+  histHead  = (histHead + 1) % HIST_SIZE;
   if (histCount < HIST_SIZE) histCount++;
 }
 
@@ -112,12 +122,10 @@ void SensorManager::updateCoulombCounter() {
   float k   = PROFILES[config.batteryType].peukertExp;
 
   if (currentA > 0.05f) {
-    // Carica: recupera capacità
     ahUsed -= currentA * eff * dtH;
   } else if (currentA < -0.05f) {
-    // Scarica con correzione Peukert
     float iAbs = fabsf(currentA);
-    float iRef = batteryCapacityAh / 20.0f;
+    float iRef  = batteryCapacityAh / 20.0f;
     float iCorr = (k > 1.0f && iRef > 0)
                   ? powf(iAbs / iRef, k - 1.0f) * iAbs
                   : iAbs;
@@ -130,24 +138,18 @@ void SensorManager::updateCoulombCounter() {
   socAh = constrain(100.0f * (1.0f - ahUsed / batteryCapacityAh), 0.0f, 100.0f);
   if (isnan(socAh)) socAh = 50.0f;
 
-  // SOC da tensione (in realtime, indipendente dal coulomb counter)
+  // SOC da tensione in realtime
   const BatteryProfile& p = PROFILES[config.batteryType];
-  float range = p.fullV - p.emptyV;
-  if (range > 0.1f && voltageBus > 1.0f) {
-    socV = constrain((voltageBus - p.emptyV) / range * 100.0f, 0.0f, 100.0f);
+  float vRange = p.fullV - p.emptyV;
+  if (vRange > 0.1f && voltageBus > 1.0f) {
+    socV = constrain((voltageBus - p.emptyV) / vRange * 100.0f, 0.0f, 100.0f);
   } else {
     socV = socAh;
   }
 
-  // SOC fuso: usa tensione se coulomb counter non è affidabile
-  // (tensione fuori range plausibile = coulomb counter ha priorità)
+  // SOC fuso: 70% coulomb + 30% tensione se tensione è nel range plausibile
   bool vInRange = (voltageBus >= (p.emptyV - 0.5f)) && (voltageBus <= (p.fullV + 0.5f));
-  if (vInRange) {
-    // Fusione: 70% coulomb + 30% tensione per stabilità
-    batterySOC = 0.7f * socAh + 0.3f * socV;
-  } else {
-    batterySOC = socAh;
-  }
+  batterySOC = vInRange ? (0.7f * socAh + 0.3f * socV) : socAh;
   batterySOC = constrain(batterySOC, 0.0f, 100.0f);
 }
 
@@ -183,13 +185,11 @@ void SensorManager::updateTanksFSM() {
       for (int i = 0; i < 4; i++)
         tankADC[i] = (uint16_t)(raw[i] / 4);
 
-      // Resistenza sonda con pull-up 2.2MΩ, ADC 12-bit, 3.3V
       for (int i = 0; i < 4; i++) {
-        if (tankADC[i] > 0 && tankADC[i] < 4095) {
+        if (tankADC[i] > 0 && tankADC[i] < 4095)
           tankMegaOhm[i] = 2.2f * (4095.0f - tankADC[i]) / (float)tankADC[i];
-        } else {
+        else
           tankMegaOhm[i] = (tankADC[i] >= 4095) ? 999.0f : 0.01f;
-        }
       }
 
       tankBlack = (tankADC[0] < config.tankBlackThreshold) ? 1 : 0;

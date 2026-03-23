@@ -36,6 +36,7 @@ public:
   float shuntOhm          = 0.00025f;
   float maxCurrentA        = 200.0f;
   float nominalVoltage     = 12.0f;  // tensione nominale configurabile
+  float currentScale       = 4.85f;  // fattore scala corrente (calibrazione)
 
   // Serbatoi
   uint16_t tankBlackThreshold = 750;

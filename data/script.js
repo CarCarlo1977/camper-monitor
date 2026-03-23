@@ -128,13 +128,14 @@ function dC() {
 
 /* Gauges */
 function setGauge(level) {
-  var pct = level / 3;
-  var off = 251 * (1 - pct);
-  document.getElementById('gaugeArc').style.strokeDashoffset = off;
-  var angle = -90 + pct * 180;
-  document.getElementById('gaugeNeedle').setAttribute('transform', 'rotate(' + angle + ',100,100)');
-  document.getElementById('gVal').textContent = level + '/3';
-  document.getElementById('gaugeArc').style.stroke = level <= 1 ? 'var(--yw)' : 'var(--ac2)'
+  var pct = level / 3 * 100;
+  var fill = document.getElementById('tkGrayFill');
+  if (fill) {
+    fill.style.width = pct + '%';
+    fill.className = 'tk-bar-fill' + (level === 0 ? ' danger' : level === 1 ? ' warn' : '');
+  }
+  var gv = document.getElementById('gVal');
+  if (gv) gv.textContent = level + '/3';
 }
 
 function fU(s) {
@@ -160,6 +161,30 @@ async function fD() {
       ah = d.ah || 0;
     document.getElementById('vV').textContent = v.toFixed(2);
     document.getElementById('vBv').style.color = d.alm_ovr ? 'var(--rd)' : d.alm_low ? 'var(--yw)' : 'var(--ac)';
+
+    // Alert tensione inline — dot + label + valore
+    const vAlrt = document.getElementById('vAlert');
+    const vAlrtMsg = document.getElementById('vAlertMsg');
+    const vAlrtVal = document.getElementById('vAlertVal');
+    const vLow = d.v_low || 11.5, vHigh = d.v_high || 14.8;
+    const vWarn = vLow + (vHigh - vLow) * 0.15;
+    vAlrtVal.textContent = v.toFixed(2) + ' V';
+    if (v < 1.0) {
+      vAlrt.className = 'v-alert warn';
+      vAlrtMsg.textContent = 'no batteria';
+    } else if (d.alm_ovr) {
+      vAlrt.className = 'v-alert over';
+      vAlrtMsg.textContent = 'sovratensione';
+    } else if (d.alm_low) {
+      vAlrt.className = 'v-alert critical';
+      vAlrtMsg.textContent = 'critico';
+    } else if (v < vWarn) {
+      vAlrt.className = 'v-alert warn';
+      vAlrtMsg.textContent = 'tensione bassa';
+    } else {
+      vAlrt.className = 'v-alert ok';
+      vAlrtMsg.textContent = 'ok';
+    }
     document.getElementById('iV').textContent = i.toFixed(1);
     document.getElementById('iV').style.color = i > 0 ? 'var(--gn)' : i < 0 ? 'var(--yw)' : 'var(--tx)';
     document.getElementById('wV').textContent = Math.abs(w).toFixed(0);
@@ -206,19 +231,13 @@ async function fD() {
     document.getElementById('iMx').textContent = (d.imax || 0).toFixed(1) + ' A';
 
     setGauge(d.tank_gray || 0);
-    const tb = d.tank_black || 0,
-      ti = document.getElementById('tbI'),
-      tt = document.getElementById('tbT');
-    if (tb) {
-      ti.className = 'tb-i fu';
-      ti.textContent = '!';
-      tt.textContent = 'Svuotare!';
-      tt.style.color = 'var(--rd)'
-    } else {
-      ti.className = 'tb-i';
-      ti.textContent = 'OK';
-      tt.textContent = 'Libero';
-      tt.style.color = 'var(--tx)'
+    const tb = d.tank_black || 0;
+    const tbFill = document.getElementById('tkBlackFill');
+    const tbT = document.getElementById('tbT');
+    if (tbFill) tbFill.style.width = tb ? '100%' : '0%';
+    if (tbT) {
+      tbT.textContent = tb ? 'Svuotare!' : 'Libero';
+      tbT.style.color = tb ? 'var(--rd)' : 'var(--tx)';
     }
 
     document.getElementById('d-rs').textContent = d.rssi + ' dBm';
@@ -320,6 +339,7 @@ async function ldCfg() {
     });
     nvSel.value = c.nomV || (c.batNomV && c.batNomV[c.batType]) || 12.0;
     document.getElementById('c-cap').value = c.capAh;
+    if (document.getElementById('c-is')) document.getElementById('c-is').value = c.iScale || 4.85;
     document.getElementById('c-sh').value = c.shuntOhm;
     document.getElementById('c-mi').value = c.maxI;
     document.getElementById('c-vh').value = c.vHigh;
@@ -356,6 +376,7 @@ async function saveCfg() {
     capAh: +document.getElementById('c-cap').value,
     shuntOhm: +document.getElementById('c-sh').value,
     nomV: +document.getElementById('c-nv').value,
+    iScale: +document.getElementById('c-is').value,
     maxI: +document.getElementById('c-mi').value,
     vHigh: +document.getElementById('c-vh').value,
     vLow: +document.getElementById('c-vl').value,

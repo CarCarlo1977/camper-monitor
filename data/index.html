@@ -50,31 +50,35 @@
           <span class="bat-eta" id="etaV">--:--</span>
           <span class="bat-w"><span id="wV">--</span> W</span>
         </div>
+        <div class="v-alert ok" id="vAlert">
+          <span class="v-alert-dot" id="vAlertDot"></span>
+          <span class="v-alert-msg" id="vAlertMsg">--</span>
+          <span class="v-alert-val" id="vAlertVal">--</span>
+        </div>
       </div>
 
       <div class="cd">
         <div class="cl">Serbatoi</div>
-        <div class="tk-row">
-          <div class="gauge-w">
-            <svg viewBox="0 0 200 110">
-              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--bg3)" stroke-width="12" stroke-linecap="round" />
-              <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--ac2)" stroke-width="12" stroke-linecap="round" stroke-dasharray="251" stroke-dashoffset="251" id="gaugeArc" style="transition:stroke-dashoffset .8s" />
-              <g id="gaugeNeedle" class="gauge-needle" transform="rotate(-90,100,100)">
-                <line x1="100" y1="100" x2="100" y2="30" stroke="var(--rd)" stroke-width="2.5" stroke-linecap="round" />
-                <circle cx="100" cy="100" r="5" fill="var(--rd)" />
-              </g>
-              <text x="30" y="108" class="gauge-lbl">0</text>
-              <text x="63" y="32" class="gauge-lbl">1</text>
-              <text x="135" y="32" class="gauge-lbl">2</text>
-              <text x="170" y="108" class="gauge-lbl">3</text>
-              <text x="100" y="90" class="gauge-val" id="gVal">-/3</text>
-              <text x="100" y="108" class="gauge-lbl">GRIGIE</text>
-            </svg>
+        <div class="tk-meters">
+          <div class="tk-meter-row">
+            <span class="tk-lbl">Grigie</span>
+            <div class="tk-bar-wrap">
+              <div class="tk-bar-bg">
+                <div class="tk-bar-fill" id="tkGrayFill" style="width:0%"></div>
+                <div class="tk-seg" style="left:33.3%"></div>
+                <div class="tk-seg" style="left:66.6%"></div>
+              </div>
+            </div>
+            <span class="tk-val" id="gVal">0/3</span>
           </div>
-          <div class="tb-col">
-            <div class="tb-i" id="tbI">OK</div>
-            <span class="tb-lbl">Nere</span>
-            <span class="tb-t" id="tbT" style="font-size:clamp(9px,1.4vmin,12px)">Libero</span>
+          <div class="tk-meter-row">
+            <span class="tk-lbl">Nere</span>
+            <div class="tk-bar-wrap">
+              <div class="tk-bar-bg">
+                <div class="tk-bar-fill tk-bar-black" id="tkBlackFill" style="width:0%"></div>
+              </div>
+            </div>
+            <span class="tk-val" id="tbT">Libero</span>
           </div>
         </div>
       </div>
@@ -216,6 +220,7 @@
         <div class="cr"><label>Capacita Ah</label><input type="number" id="c-cap" step="1" min="1" max="2000"></div>
         <div class="cr"><label>Shunt Ohm</label><input type="number" id="c-sh" step="0.00001" min="0.00001" max="0.1"></div>
         <div class="cr"><label>V nominale</label><select id="c-nv"></select></div>
+        <div class="cr"><label>Scala corrente</label><input type="number" id="c-is" step="0.01" min="0.1" max="100"></div>
         <div class="cr"><label>I max A</label><input type="number" id="c-mi" step="1" min="1" max="1000"></div>
       </div>
 

@@ -126,6 +126,7 @@ void WebServerManager::setupAPI() {
     doc["shuntOhm"]  = config.shuntOhm;
     doc["maxI"]      = config.maxCurrentA;
     doc["nomV"]      = config.nominalVoltage;
+    doc["iScale"]    = config.currentScale;
 
     doc["tBlkThr"]   = config.tankBlackThreshold;
     doc["tGryThr"]   = config.tankGrayThreshold;
@@ -183,6 +184,7 @@ void WebServerManager::setupAPI() {
       if (doc.containsKey("shuntOhm")) { config.shuntOhm = doc["shuntOhm"]; sensors.reInitINA(); }
       if (doc.containsKey("maxI"))     { config.maxCurrentA = doc["maxI"]; sensors.reInitINA(); }
       if (doc.containsKey("nomV"))     config.nominalVoltage = doc["nomV"];
+      if (doc.containsKey("iScale"))   config.currentScale   = doc["iScale"];
 
       if (doc.containsKey("tBlkThr")) config.tankBlackThreshold = doc["tBlkThr"];
       if (doc.containsKey("tGryThr")) config.tankGrayThreshold  = doc["tGryThr"];
