@@ -38,14 +38,15 @@ public:
   void updateCoulombCounter();
   void resetMinMax();
   void reInitINA();   // dopo cambio shunt da config
+  void debugGrayTanks();
 
 private:
   INA228Driver ina;
   enum TankFSM { TK_IDLE, TK_EXCITING, TK_READING };
   TankFSM tankState = TK_IDLE;
   unsigned long tankTimer = 0;
-  static const unsigned long TANK_CYCLE_MS  = 180000UL;
-  static const unsigned long TANK_SETTLE_MS = 700UL;
+  static const unsigned long TANK_CYCLE_MS  = 30000UL;  // 10 secondi
+  static const unsigned long TANK_SETTLE_MS = 50UL;      // 50ms
 };
 
 extern SensorManager sensors;
