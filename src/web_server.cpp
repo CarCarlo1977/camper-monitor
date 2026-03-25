@@ -163,6 +163,16 @@ void WebServerManager::setupAPI() {
     req->send(200, "application/json", json);
   });
 
+httpServer.on("/api/reset-soc", HTTP_POST, [](AsyncWebServerRequest *req) {
+    sensors.ahUsed     = 0.0f;
+    sensors.batterySOC = 100.0f;
+    sensors.socAh      = 100.0f;
+    sensors.socV       = 100.0f;
+    config.ahUsedSaved = 0.0f;
+    config.saveAhUsed(0.0f);
+    req->send(200, "application/json", "{\"ok\":true}");
+});
+
   // --- Salva configurazione ---
   httpServer.on("/api/config", HTTP_POST,
     [](AsyncWebServerRequest *req) {},

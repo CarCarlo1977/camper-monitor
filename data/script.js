@@ -280,8 +280,8 @@ async function fD() {
     document.getElementById('m-ina').textContent = d.connected ? 'OK' : 'SIM';
     document.getElementById('m-ina').style.color = d.connected ? 'var(--gn)' : 'var(--yw)';
     document.getElementById('m-wm').textContent = d.wifiMode || '--';
-    document.getElementById('m-ip').textContent = d.ip || '--';
-    document.getElementById('m-apip').textContent = d.apip || '--'
+    document.getElementById('m-ip').textContent = d.sta_ip || '--';
+    document.getElementById('m-apip').textContent = d.ap_ip || '--'
   } catch (e) {
     document.getElementById('dot').className = 'dot'
   }
@@ -310,6 +310,16 @@ async function rstMM() {
       method: 'POST'
     });
     toast('Reset!')
+  } catch (e) {
+    toast('Errore', 'err')
+  }
+}
+
+async function rstSOC() {
+  if (!confirm('Resettare SOC? Imposta batteria al 100%')) return;
+  try {
+    await fetch('/api/reset-soc', { method: 'POST' });
+    toast('SOC resettato!')
   } catch (e) {
     toast('Errore', 'err')
   }
