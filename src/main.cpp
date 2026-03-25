@@ -138,23 +138,26 @@ void loop() {
                       sensors.currentMin, sensors.currentMax);
   }
 
-  // --- 4. SALVATAGGIO AH (SOC) - FIX RESET ---
-// In main.cpp - Sezione salvataggio AH
-if (now - lastAhSaveMs >= AH_SAVE_INTERVAL) {
-    lastAhSaveMs = now; 
+ // --- 4. SALVATAGGIO AH (SOC) ---
+unsigned long elapsed = now - lastAhSaveMs;
+float diffAh = abs(sensors.ahUsed - config.ahUsedSaved);
 
-    if (sensors.socResetPending) {
-        // Se c'è un reset pendente, non scrivere nulla: 
-        // l'API ha già scritto 0.0f. Puliamo solo lo stato.
-        sensors.socResetPending = false;
-        config.ahUsedSaved = sensors.ahUsed; 
-        Serial.println("[System] SOC Reset sincronizzato nel loop.");
-    } 
-    else if (abs(sensors.ahUsed - config.ahUsedSaved) > 0.02f) {
-        // Salva solo se c'è una variazione reale
+if (sensors.socResetPending) {
+    sensors.socResetPending = false;
+    config.ahUsedSaved = sensors.ahUsed; 
+    lastAhSaveMs = now;
+} 
+// CONDIZIONE A: È passato 1 minuto (consumo lento)
+// CONDIZIONE B: Abbiamo consumato più di 0.05Ah (consumo veloce, es. Inverter)
+else if (elapsed >= AH_SAVE_INTERVAL || diffAh > 0.05f) {
+    
+    // Salva solo se c'è stata una variazione minima (es. 0.01) per non scrivere a vuoto
+    if (diffAh > 0.01f) {
         config.saveAhUsed(sensors.ahUsed);
         config.ahUsedSaved = sensors.ahUsed;
-        Serial.printf("[System] Auto-save Ah: %.2f\n", sensors.ahUsed);
+        lastAhSaveMs = now;
+        Serial.printf("[System] Save: %.2f Ah (Motivo: %s)\n", 
+                      sensors.ahUsed, (diffAh > 0.05f) ? "CARICO ALTO" : "TIMER");
     }
 }
 

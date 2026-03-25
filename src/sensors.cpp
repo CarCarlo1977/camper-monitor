@@ -135,13 +135,15 @@ void SensorManager::updateCoulombCounter() {
   float eff = p.coulombEff;
   float k   = p.peukertExp;
 
+  // 1. Applichiamo la Dead-Zone alla corrente per il conteggio Ah
+  float filterA = currentA;
+  if (fabsf(filterA) < 0.1f) filterA = 0.0f; // Ignora rumore sotto i 100mA
+
   // === Coulomb counter con correzione Peukert ===
-  if (currentA > 0.05f) {
-    // Carica: recupera capacità
-    ahUsed -= currentA * eff * dtH;
-  } else if (currentA < -0.05f) {
-    // Scarica con correzione Peukert
-    float iAbs = fabsf(currentA);
+  if (filterA > 0.05f) {
+    ahUsed -= filterA * eff * dtH;
+  } else if (filterA < -0.05f) {
+    float iAbs = fabsf(filterA);
     float iRef  = batteryCapacityAh / 20.0f;
     float iCorr = (k > 1.0f && iRef > 0)
                   ? powf(iAbs / iRef, k - 1.0f) * iAbs
@@ -150,40 +152,41 @@ void SensorManager::updateCoulombCounter() {
   }
   ahUsed = constrain(ahUsed, 0.0f, batteryCapacityAh);
 
-  // SOC da coulomb counter
   socAh = constrain(100.0f * (1.0f - ahUsed / batteryCapacityAh), 0.0f, 100.0f);
   if (isnan(socAh)) socAh = 50.0f;
 
-  // === SOC da tensione con compensazione voltage sag (OCV stimato) ===
-  // Vmis = OCV - I*Ri  →  OCV = Vmis + I*Ri
-  // currentA > 0 (carica): tensione sovrastimata → OCV = Vmis - I*Ri
-  // currentA < 0 (scarica): tensione sottostimata → OCV = Vmis + |I|*Ri
-  // In entrambi i casi: OCV = Vmis - currentA * Ri  (segno già incluso)
+  // === SOC da tensione (OCV stimato) ===
   float vRange = p.fullV - p.emptyV;
   if (vRange > 0.1f && voltageBus > 1.0f) {
-    // Ri scala inversamente con la capacità
     float Ri = p.internalR * (100.0f / batteryCapacityAh);
     float ocv = voltageBus - (currentA * Ri);
-    ocv = constrain(ocv, p.emptyV - 1.0f, p.fullV + 1.0f);
+    
+    // MODIFICA: Limitiamo l'OCV a valori reali per evitare salti sotto carico 1500W
+    ocv = constrain(ocv, p.emptyV - 0.2f, p.fullV + 0.2f);
     socV = constrain((ocv - p.emptyV) / vRange * 100.0f, 0.0f, 100.0f);
   } else {
     socV = socAh;
   }
 
-  // === Fusione adattiva SOC ===
-  // A riposo (|I| < 0.5A): OCV affidabile → peso maggiore a socV
-  // Sotto carico leggero: mix bilanciato
-  // Sotto carico pesante: coulomb counter affidabile → peso quasi tutto su socAh
+  // === Fusione adattiva SOC (MODIFICATA PER 1500W) ===
   bool vInRange = (voltageBus >= (p.emptyV - 0.5f)) && (voltageBus <= (p.fullV + 0.5f));
   if (vInRange) {
     float iAbs = fabsf(currentA);
-    float wV = (iAbs < 0.5f)  ? 0.6f :   // riposo: 60% tensione OCV
-               (iAbs < 5.0f)  ? 0.2f :   // carico leggero: 20%
-               (iAbs < 20.0f) ? 0.1f :   // carico medio: 10%
-                                 0.05f;   // carico pesante: 5%
+    float wV;
+
+    // Se il carico è sopra i 40A (Inverter), ignoriamo i Volt (wV = 0)
+    // perché la caduta di tensione è troppo violenta per essere affidabile.
+    if (iAbs > 40.0f) {
+        wV = 0.0f; 
+    } else {
+        wV = (iAbs < 0.5f)  ? 0.6f :   // Riposo: 60% Volt
+             (iAbs < 5.0f)  ? 0.2f :   // Carico leggero: 20% Volt
+             (iAbs < 20.0f) ? 0.1f :   // Carico medio: 10% Volt
+                              0.05f;   // Carico fino a 40A: 5% Volt
+    }
+    
     batterySOC = (1.0f - wV) * socAh + wV * socV;
   } else {
-    // Tensione fuori range plausibile (USB, disconnesso): solo coulomb counter
     batterySOC = socAh;
   }
   batterySOC = constrain(batterySOC, 0.0f, 100.0f);
