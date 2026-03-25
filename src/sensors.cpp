@@ -150,6 +150,20 @@ void SensorManager::updateCoulombCounter() {
                   : iAbs;
     ahUsed += iCorr * dtH;
   }
+
+  // === NUOVA LOGICA: Auto-Sync al 100% ===
+  // Se tensione alta (piena) E corrente di ricarica molto bassa (satura)
+  static unsigned long syncTimer = 0;
+  if (voltageBus >= (p.fullV - 0.1f) && currentA > 0.0f && currentA < 0.5f) {
+    if (syncTimer == 0) syncTimer = millis();
+    if (now - syncTimer > 30000UL) { // 30 secondi di stabilità
+      ahUsed = 0.0f; 
+      if (now % 5000 < 50) Serial.println("[Sensors] AUTO-SYNC: Batteria 100%");
+    }
+  } else {
+    syncTimer = 0;
+  }
+
   ahUsed = constrain(ahUsed, 0.0f, batteryCapacityAh);
 
   socAh = constrain(100.0f * (1.0f - ahUsed / batteryCapacityAh), 0.0f, 100.0f);
@@ -174,8 +188,6 @@ void SensorManager::updateCoulombCounter() {
     float iAbs = fabsf(currentA);
     float wV;
 
-    // Se il carico è sopra i 40A (Inverter), ignoriamo i Volt (wV = 0)
-    // perché la caduta di tensione è troppo violenta per essere affidabile.
     if (iAbs > 40.0f) {
         wV = 0.0f; 
     } else {
@@ -211,26 +223,35 @@ void SensorManager::updateTanksFSM() {
       }
       break;
     case TK_READING: {
-      uint32_t raw[4] = {0,0,0,0};
-      for (int s = 0; s < 4; s++) {
-        raw[0] += analogRead(config.pinTankBlack);
-        raw[1] += analogRead(config.pinTankGray1);
-        raw[2] += analogRead(config.pinTankGray2);
-        raw[3] += analogRead(config.pinTankGray3);
-        delayMicroseconds(200);
+      uint32_t sum[4] = {0, 0, 0, 0};
+      const int SAMPLES = 64; // Aumentiamo i campioni per eliminare il "rumore" e lo sciacquio
+
+      for (int s = 0; s < SAMPLES; s++) {
+        sum[0] += analogRead(config.pinTankBlack);
+        sum[1] += analogRead(config.pinTankGray1);
+        sum[2] += analogRead(config.pinTankGray2);
+        sum[3] += analogRead(config.pinTankGray3);
+        // Un micro-ritardo aiuta l'accuratezza dell'ADC su ESP32
+        delayMicroseconds(50); 
       }
+      
+      // Spegniamo l'eccitazione subito dopo la lettura per evitare corrosione
       digitalWrite(config.pinTankExcite, LOW);
 
-      for (int i = 0; i < 4; i++)
-        tankADC[i] = (uint16_t)(raw[i] / 4);
+      // Calcoliamo la media reale sui 64 campioni
+      for (int i = 0; i < 4; i++) {
+        tankADC[i] = (uint16_t)(sum[i] / SAMPLES);
+      }
 
+      // Calcolo resistenza in MegaOhm (utile per debug o calibrazioni fini)
       for (int i = 0; i < 4; i++) {
         if (tankADC[i] > 0 && tankADC[i] < 4095)
-          tankMegaOhm[i] = 2.2f * (4095.0f - tankADC[i]) / (float)tankADC[i];
+          tankMegaOhm[i] = 2.2f * (4095.0f - (float)tankADC[i]) / (float)tankADC[i];
         else
           tankMegaOhm[i] = (tankADC[i] >= 4095) ? 999.0f : 0.01f;
       }
 
+      // Logica soglie: Nere (On/Off) e Grigie (Livelli 1-3)
       tankBlack = (tankADC[0] < config.tankBlackThreshold) ? 1 : 0;
 
       uint8_t lvl = 0;
