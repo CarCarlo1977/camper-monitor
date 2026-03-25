@@ -20,6 +20,15 @@ void SensorManager::init(int sda, int scl) {
     ina.setShuntCal(config.maxCurrentA, config.shuntOhm);
     Serial.println("[Sensors] INA228 OK");
   }
+Serial.printf("[DEBUG] Appena letto da config: %.2f Ah\n", config.ahUsedSaved);
+  // Carica lo stato persistente Ah
+  ahUsed = config.ahUsedSaved; 
+  batteryCapacityAh = config.batteryCapacityAh;
+  
+  // Inizializza il timer per evitare salti nel coulomb counter
+  lastCoulombMs = millis();
+  
+  Serial.printf("[Sensors] Stato iniziale Ah caricato: %.2f\n", ahUsed);
 
   pinMode(config.pinTankExcite, OUTPUT);
   digitalWrite(config.pinTankExcite, LOW);
@@ -35,25 +44,31 @@ void SensorManager::init(int sda, int scl) {
   currentMax = config.currentMaxSeen;
 
   // Stima SOC iniziale da OCV (dopo configure per lettura valida)
+  // --- NUOVA LOGICA DI INIZIALIZZAZIONE SOC (Sostituisci da riga 45 circa) ---
   if (inaPresent) {
-    delay(300); // attende AVG_256 prima conversione (~270ms)
-    float vNow = ina.getBusVoltage();
-    const BatteryProfile& p = PROFILES[config.batteryType];
-    float vRange = p.fullV - p.emptyV;
-    bool vPlausible = !isnan(vNow) && vNow >= (p.emptyV - 1.0f) && vNow <= (p.fullV + 1.0f);
-    if (vPlausible && vRange > 0.1f) {
-      float soc = constrain((vNow - p.emptyV) / vRange, 0.0f, 1.0f);
-      ahUsed = batteryCapacityAh * (1.0f - soc);
-      Serial.printf("[Sensors] SOC init da V=%.2f -> %.1f%%\n", vNow, soc * 100.0f);
-    } else if (config.ahUsedSaved > 0.0f && config.ahUsedSaved <= batteryCapacityAh) {
+    delay(600); // Aspetta che l'INA faccia la prima conversione completa (AVG_256)
+    
+    // 1. Priorità assoluta al valore salvato in NVS (se sensato)
+    if (config.ahUsedSaved >= 0.0f && config.ahUsedSaved <= batteryCapacityAh) {
       ahUsed = config.ahUsedSaved;
-      Serial.printf("[Sensors] SOC da NVS: ahUsed=%.1f\n", ahUsed);
-    } else {
-      ahUsed = batteryCapacityAh * 0.5f;
-      Serial.println("[Sensors] SOC default 50%");
+      Serial.printf("[Sensors] SOC caricato da NVS: ahUsed=%.2f\n", ahUsed);
+    } 
+    // 2. Fallback: Se NVS è vuoto o fuori range, stima dalla tensione
+    else {
+      float vNow = ina.getBusVoltage();
+      const BatteryProfile& p = PROFILES[config.batteryType];
+      float vRange = p.fullV - p.emptyV;
+      if (vNow > 5.0f && vRange > 0.1f) {
+        float soc = constrain((vNow - p.emptyV) / vRange, 0.0f, 1.0f);
+        ahUsed = batteryCapacityAh * (1.0f - soc);
+        Serial.printf("[Sensors] NVS vuoto, stima SOC da V(%.2fV): %.1f%%\n", vNow, soc * 100.0f);
+      } else {
+        ahUsed = batteryCapacityAh * 0.5f; // Ultima spiaggia: 50%
+        Serial.println("[Sensors] SOC default 50% (nessun dato disponibile)");
+      }
     }
   } else {
-    ahUsed = config.ahUsedSaved > 0.0f ? config.ahUsedSaved : batteryCapacityAh * 0.5f;
+    ahUsed = config.ahUsedSaved;
   }
 
   lastCoulombMs = millis();

@@ -12,6 +12,7 @@ public:
   float voltageBus = 0, currentA = 0, powerW = 0;
   float voltageMin = 100, voltageMax = 0;
   float currentMin = 1000, currentMax = 0;
+  bool socResetPending = false;
 
   uint8_t  tankGray = 0, tankBlack = 0;
   uint16_t tankADC[4] = {4095,4095,4095,4095};

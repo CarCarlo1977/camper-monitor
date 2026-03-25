@@ -70,6 +70,7 @@ public:
   float currentMinSeen = 1000.0f;
   float currentMaxSeen =    0.0f;
   float ahUsedSaved    =    0.0f;
+  void forceSaveAh(float currentAh);
 
   void load();
   void save();

@@ -11,7 +11,7 @@
 const unsigned long SENSOR_INTERVAL  =   1000UL;
 const unsigned long SERIAL_INTERVAL  =   2000UL;
 const unsigned long SAVE_INTERVAL    = 300000UL;  // 5 min (min/max)
-const unsigned long AH_SAVE_INTERVAL =  10000UL;  // 10 sec (ahUsed)
+const unsigned long AH_SAVE_INTERVAL =  60000UL;  // 1 min (ahUsed)
 const unsigned long WIFI_RETRY_MS    =  30000UL;  // riprova STA ogni 30s
 
 unsigned long lastSensorMs = 0, lastSerialMs = 0, lastSaveMs = 0,
@@ -117,6 +117,7 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
+  // --- 1. LETTURA SENSORI ---
   if (now - lastSensorMs >= SENSOR_INTERVAL) {
     lastSensorMs = now;
     sensors.readBattery();
@@ -124,32 +125,49 @@ void loop() {
     sensors.updateTanksFSM();
   }
 
+  // --- 2. LOG SERIALE ---
   if (now - lastSerialMs >= SERIAL_INTERVAL) {
     lastSerialMs = now;
     sendSerialJSON();
   }
 
-  // Salvataggio periodico min/max (ogni 5 min)
+  // --- 3. SALVATAGGIO MIN/MAX (Periodico) ---
   if (now - lastSaveMs >= SAVE_INTERVAL) {
     lastSaveMs = now;
     config.saveMinMax(sensors.voltageMin, sensors.voltageMax,
                       sensors.currentMin, sensors.currentMax);
   }
 
-  // Salvataggio ahUsed ogni 10 secondi per SOC preciso dopo reboot
-  if (now - lastAhSaveMs >= AH_SAVE_INTERVAL) {
-    lastAhSaveMs = now;
-    config.saveAhUsed(sensors.ahUsed);
-  }
+  // --- 4. SALVATAGGIO AH (SOC) - FIX RESET ---
+// In main.cpp - Sezione salvataggio AH
+if (now - lastAhSaveMs >= AH_SAVE_INTERVAL) {
+    lastAhSaveMs = now; 
 
-  // Riconnessione STA automatica se cade la rete
-  if (config.wifiSTA_SSID.length() > 0 &&
-      WiFi.status() != WL_CONNECTED &&
+    if (sensors.socResetPending) {
+        // Se c'è un reset pendente, non scrivere nulla: 
+        // l'API ha già scritto 0.0f. Puliamo solo lo stato.
+        sensors.socResetPending = false;
+        config.ahUsedSaved = sensors.ahUsed; 
+        Serial.println("[System] SOC Reset sincronizzato nel loop.");
+    } 
+    else if (abs(sensors.ahUsed - config.ahUsedSaved) > 0.02f) {
+        // Salva solo se c'è una variazione reale
+        config.saveAhUsed(sensors.ahUsed);
+        config.ahUsedSaved = sensors.ahUsed;
+        Serial.printf("[System] Auto-save Ah: %.2f\n", sensors.ahUsed);
+    }
+}
+
+  // --- 5. RICONNESSIONE WIFI (Migliorata) ---
+  if (config.wifiSTA_SSID.length() > 0 && 
+      WiFi.status() != WL_CONNECTED && 
+      WiFi.status() != WL_DISCONNECTED && // Evita di sovrapporsi a un tentativo in corso
       now - lastWifiRetryMs >= WIFI_RETRY_MS) {
+    
     lastWifiRetryMs = now;
-    Serial.println("[WiFi] STA disconnessa, riconnessione...");
-    WiFi.disconnect(false);
-    delay(100);
+    Serial.println("[WiFi] STA persa, tentativo riconnessione...");
+    
+    // Non chiamare disconnect(true) o cancelleresti la config AP
     WiFi.begin(config.wifiSTA_SSID.c_str(), config.wifiSTA_Password.c_str());
   }
 

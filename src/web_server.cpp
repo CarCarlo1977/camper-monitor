@@ -88,26 +88,30 @@ void WebServerManager::setupAPI() {
   });
 
   // --- Storico per grafico ---
-  httpServer.on("/api/history", HTTP_GET, [](AsyncWebServerRequest *req) {
+  // --- Sostituisci la rotta /api/history con questa ---
+httpServer.on("/api/history", HTTP_GET, [](AsyncWebServerRequest *req) {
+    AsyncResponseStream *response = req->beginResponseStream("application/json");
+    
     int count = sensors.histCount;
     int start = (count < SensorManager::HIST_SIZE) ? 0 : sensors.histHead;
-    // Formato {"voltage":[{"v":4.62},...], "current":[{"v":0.1},...]}
-    String json = "{";
-    json += "\"voltage\":[";
+
+    response->print("{\"voltage\":[");
     for (int n = 0; n < count; n++) {
-      int idx = (start + n) % SensorManager::HIST_SIZE;
-      if (n > 0) json += ",";
-      json += "{\"v\":" + String(sensors.history[idx].v, 2) + "}";
+        int idx = (start + n) % SensorManager::HIST_SIZE;
+        if (n > 0) response->print(",");
+        response->printf("{\"v\":%.2f}", sensors.history[idx].v);
     }
-    json += "],\"current\":[";
+
+    response->print("],\"current\":[");
     for (int n = 0; n < count; n++) {
-      int idx = (start + n) % SensorManager::HIST_SIZE;
-      if (n > 0) json += ",";
-      json += "{\"v\":" + String(sensors.history[idx].i, 1) + "}";
+        int idx = (start + n) % SensorManager::HIST_SIZE;
+        if (n > 0) response->print(",");
+        response->printf("{\"v\":%.1f}", sensors.history[idx].i);
     }
-    json += "]}";
-    req->send(200, "application/json", json);
-  });
+    response->print("]}");
+    
+    req->send(response);
+});
 
   // --- Reset min/max ---
   httpServer.on("/api/reset-minmax", HTTP_POST, [](AsyncWebServerRequest *req) {
@@ -163,13 +167,23 @@ void WebServerManager::setupAPI() {
     req->send(200, "application/json", json);
   });
 
+// In web_server.cpp - Rotta /api/reset-soc
 httpServer.on("/api/reset-soc", HTTP_POST, [](AsyncWebServerRequest *req) {
-    sensors.ahUsed     = 0.0f;
+    // Reset RAM Sensori
+    sensors.ahUsed = 0.0f;
     sensors.batterySOC = 100.0f;
-    sensors.socAh      = 100.0f;
-    sensors.socV       = 100.0f;
-    config.ahUsedSaved = 0.0f;
-    config.saveAhUsed(0.0f);
+    sensors.socAh = 100.0f;
+    sensors.socV = 100.0f;
+    
+    // Reset RAM Config (Il riferimento per il loop)
+    config.ahUsedSaved = 0.0f; 
+    
+    // Scrittura Fisica Flash
+    config.saveAhUsed(0.0f);   
+    
+    // Notifica al loop di non salvare sopra
+    sensors.socResetPending = true; 
+    
     req->send(200, "application/json", "{\"ok\":true}");
 });
 
@@ -226,6 +240,7 @@ httpServer.on("/api/reset-soc", HTTP_POST, [](AsyncWebServerRequest *req) {
       req->send(200, "application/json", json);
 
       if (needReboot) {
+        config.forceSaveAh(sensors.ahUsed);
         delay(500);
         ESP.restart();
       }
@@ -234,30 +249,32 @@ httpServer.on("/api/reset-soc", HTTP_POST, [](AsyncWebServerRequest *req) {
 
   // --- Reboot ---
   httpServer.on("/api/reboot", HTTP_POST, [](AsyncWebServerRequest *req) {
+    config.forceSaveAh(sensors.ahUsed);
     req->send(200, "application/json", "{\"ok\":true}");
     delay(500);
     ESP.restart();
   });
   
     // --- Scansione WiFi ---
-  httpServer.on("/api/wifi-scan", HTTP_GET, [](AsyncWebServerRequest *req) {
-    // Nota: La scansione viene eseguita in modo sincrono qui per semplicità 
-    // poiché restituisce i risultati immediatamente dopo la fine della scansione.
-    int n = WiFi.scanNetworks();
-    
-    String json = "[";
-    for (int i = 0; i < n; ++i) {
-      if (i > 0) json += ",";
-      json += "{";
-      json += "\"ssid\":\"" + WiFi.SSID(i) + "\",";
-      json += "\"rssi\":" + String(WiFi.RSSI(i));
-      json += "}";
+  // --- Versione ottimizzata di /api/wifi-scan ---
+httpServer.on("/api/wifi-scan", HTTP_GET, [](AsyncWebServerRequest *req) {
+    int n = WiFi.scanComplete();
+    if(n == -2) { // Scansione non avviata
+        WiFi.scanNetworks(true);
+        req->send(202, "application/json", "{\"msg\":\"Scanning...\"}");
+    } else if(n >= 0) { // Scansione completata
+        String json = "[";
+        for (int i = 0; i < n; ++i) {
+            if (i > 0) json += ",";
+            json += "{\"ssid\":\"" + WiFi.SSID(i) + "\",\"rssi\":" + String(WiFi.RSSI(i)) + "}";
+        }
+        json += "]";
+        WiFi.scanDelete();
+        req->send(200, "application/json", json);
+    } else { // Scansione in corso
+        req->send(202, "application/json", "{\"msg\":\"Scanning...\"}");
     }
-    json += "]";
-    
-    WiFi.scanDelete(); // Libera memoria
-    req->send(200, "application/json", json);
-  });
+});
   
 }
 

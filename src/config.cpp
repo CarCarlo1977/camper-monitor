@@ -100,3 +100,9 @@ void Config::saveAhUsed(float ah) {
   prefs.putFloat("ahUsed", ah);
   prefs.end();
 }
+
+void Config::forceSaveAh(float currentAh) {
+  ahUsedSaved = currentAh;
+  saveAhUsed(currentAh);
+  Serial.printf("[Config] Salvataggio forzato pre-riavvio: %.2f Ah\n", currentAh);
+}
