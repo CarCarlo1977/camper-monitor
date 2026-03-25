@@ -45,8 +45,8 @@ private:
   enum TankFSM { TK_IDLE, TK_EXCITING, TK_READING };
   TankFSM tankState = TK_IDLE;
   unsigned long tankTimer = 0;
-  static const unsigned long TANK_CYCLE_MS  = 15000UL;  // 10 secondi
-  static const unsigned long TANK_SETTLE_MS = 70UL;      // 70ms
+  static const unsigned long TANK_CYCLE_MS  = 15000UL;  
+  static const unsigned long TANK_SETTLE_MS = 70UL;     
 };
 
 extern SensorManager sensors;
