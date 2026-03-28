@@ -19,6 +19,10 @@ void SensorManager::init(int sda, int scl) {
                   ConvTime::CT_1052US, AVGCount::AVG_256);
     ina.setShuntCal(config.maxCurrentA, config.shuntOhm);
     Serial.println("[Sensors] INA228 OK");
+    
+    // DEBUG: Verifica i parametri di calibrazione caricati
+    Serial.printf("[DEBUG INA] maxCurrentA=%.1f A | shuntOhm=%.8f Ω | currentScale=%.6f\n",
+                  config.maxCurrentA, config.shuntOhm, config.currentScale);
   }
 Serial.printf("[DEBUG] Appena letto da config: %.2f Ah\n", config.ahUsedSaved);
   // Carica lo stato persistente Ah
@@ -89,6 +93,14 @@ void SensorManager::readBattery() {
     if (isnan(iraw)) {
       currentA = 0;
     } else {
+      // DEBUG: Stampa raw vs scaled una volta ogni 10 secondi
+      static unsigned long lastDebugMs = 0;
+      if (millis() - lastDebugMs > 10000UL) {
+        lastDebugMs = millis();
+        Serial.printf("[DEBUG CURRENT] iraw=%.4f A | scale=%.4f | maxI=%.1f | shunt=%.8f\n",
+                      iraw, config.currentScale, config.maxCurrentA, config.shuntOhm);
+      }
+
       // Scala corrente: corregge errore sistematico di calibrazione shunt
       float scaled = iraw * config.currentScale;
       // Dead-band 0.02A dopo scala
@@ -223,35 +235,26 @@ void SensorManager::updateTanksFSM() {
       }
       break;
     case TK_READING: {
-      uint32_t sum[4] = {0, 0, 0, 0};
-      const int SAMPLES = 64; // Aumentiamo i campioni per eliminare il "rumore" e lo sciacquio
-
-      for (int s = 0; s < SAMPLES; s++) {
-        sum[0] += analogRead(config.pinTankBlack);
-        sum[1] += analogRead(config.pinTankGray1);
-        sum[2] += analogRead(config.pinTankGray2);
-        sum[3] += analogRead(config.pinTankGray3);
-        // Un micro-ritardo aiuta l'accuratezza dell'ADC su ESP32
-        delayMicroseconds(50); 
+      uint32_t raw[4] = {0,0,0,0};
+      for (int s = 0; s < 4; s++) {
+        raw[0] += analogRead(config.pinTankBlack);
+        raw[1] += analogRead(config.pinTankGray1);
+        raw[2] += analogRead(config.pinTankGray2);
+        raw[3] += analogRead(config.pinTankGray3);
+        delayMicroseconds(200);
       }
-      
-      // Spegniamo l'eccitazione subito dopo la lettura per evitare corrosione
       digitalWrite(config.pinTankExcite, LOW);
 
-      // Calcoliamo la media reale sui 64 campioni
-      for (int i = 0; i < 4; i++) {
-        tankADC[i] = (uint16_t)(sum[i] / SAMPLES);
-      }
+      for (int i = 0; i < 4; i++)
+        tankADC[i] = (uint16_t)(raw[i] / 4);
 
-      // Calcolo resistenza in MegaOhm (utile per debug o calibrazioni fini)
       for (int i = 0; i < 4; i++) {
         if (tankADC[i] > 0 && tankADC[i] < 4095)
-          tankMegaOhm[i] = 2.2f * (4095.0f - (float)tankADC[i]) / (float)tankADC[i];
+          tankMegaOhm[i] = 2.2f * (4095.0f - tankADC[i]) / (float)tankADC[i];
         else
           tankMegaOhm[i] = (tankADC[i] >= 4095) ? 999.0f : 0.01f;
       }
 
-      // Logica soglie: Nere (On/Off) e Grigie (Livelli 1-3)
       tankBlack = (tankADC[0] < config.tankBlackThreshold) ? 1 : 0;
 
       uint8_t lvl = 0;

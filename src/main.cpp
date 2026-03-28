@@ -7,12 +7,15 @@
 #include "config.h"
 #include "sensors.h"
 #include "web_server.h"
+#include "lcd_manager.h"
 
 const unsigned long SENSOR_INTERVAL  =   1000UL;
 const unsigned long SERIAL_INTERVAL  =   2000UL;
 const unsigned long SAVE_INTERVAL    = 300000UL;  // 5 min (min/max)
 const unsigned long AH_SAVE_INTERVAL =  60000UL;  // 1 min (ahUsed)
 const unsigned long WIFI_RETRY_MS    =  30000UL;  // riprova STA ogni 30s
+
+#define OLED_MS      1000UL   // Update OLED ogni 1 sec
 
 unsigned long lastSensorMs = 0, lastSerialMs = 0, lastSaveMs = 0,
               lastAhSaveMs = 0, lastWifiRetryMs = 0;
@@ -89,6 +92,11 @@ void sendSerialJSON() {
   Serial.println(buf);
 }
 
+bool scanI2C(uint8_t addr) {
+  Wire.beginTransmission(addr);
+  return (Wire.endTransmission() == 0);  // 0 = ACK ricevuto
+}
+
 void setup() {
   Serial.begin(115200);
   delay(500);
@@ -98,6 +106,37 @@ void setup() {
 
   config.load();
   Serial.println("[Config] Caricata");
+
+  Wire.begin(21, 22);
+  delay(100);
+  
+  Serial.println("[I2C] Scanning...");
+  bool found_oled = false;
+  bool found_ina = false;
+  
+  // Cerca OLED
+  uint8_t oled_addr = 0;
+  uint8_t addrs[] = {0x3C, 0x78, 0x7A, 0x3D};
+  for (int i = 0; i < 4; i++) {
+    if (scanI2C(addrs[i])) {
+      Serial.printf("[I2C] ✓ OLED found at 0x%02X\n", addrs[i]);
+      oled_addr = addrs[i];
+      found_oled = true;
+      break;
+    }
+  }
+  
+  if (!found_oled) {
+    Serial.println("[I2C] ✗ OLED NOT FOUND - skipping");
+  } else {
+    oledDisplay.begin(SSD1306_SWITCHCAPVCC, oled_addr);
+    initOLED();
+  }
+  
+  lcdManager.init();
+  initOLED();
+
+
 
   if (!LittleFS.begin(true)) Serial.println("[FS] ERRORE mount");
   else Serial.println("[FS] LittleFS OK");
@@ -117,12 +156,24 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
+
+
   // --- 1. LETTURA SENSORI ---
   if (now - lastSensorMs >= SENSOR_INTERVAL) {
     lastSensorMs = now;
     sensors.readBattery();
     sensors.updateCoulombCounter();
     sensors.updateTanksFSM();
+  }
+
+  updateOLED();
+
+  // ─── LCD UPDATE & ENCODER HANDLING ───────────────────
+  static unsigned long lastLcdUpdate = 0;
+  if (millis() - lastLcdUpdate >= LCD_MS) {
+    lastLcdUpdate = millis();
+    lcdManager.handleEncoderInput();  // Encoder + button
+    lcdManager.update();              // Redraw LCD
   }
 
   // --- 2. LOG SERIALE ---

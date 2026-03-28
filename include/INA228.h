@@ -92,16 +92,21 @@ public:
     return (float)val * 195.3125e-6f;
   }
 
-  float getCurrent() {
-    // Registro CURRENT: 24 bit, SIGNED, 20 bit utili [23:4]
-    // I bit [3:0] sono riservati
-    uint32_t raw = _readReg24(INA228_REG_CURRENT);
-    // Shift out i 4 bit riservati → valore a 20 bit
-    int32_t val = (int32_t)(raw >> 4);
-    // Sign extension da 20 bit a 32 bit
-    if (val & 0x00080000) val |= 0xFFF00000;
-    return (float)val * _currentLSB;
+float getCurrent() {
+  uint32_t raw = _readReg24(INA228_REG_CURRENT);
+  int32_t val = (int32_t)(raw >> 4);
+  if (val & 0x00080000) val |= 0xFFF00000;
+  
+  // DEBUG
+  static unsigned long lastDbgMs = 0;
+  if (millis() - lastDbgMs > 5000UL) {
+    lastDbgMs = millis();
+    Serial.printf("[INA RAW] raw24bit=0x%06X | val20bit=%ld (0x%05X) | LSB=%.8f | I=%.4f A\n",
+                  raw, val, val & 0xFFFFF, _currentLSB, (float)val * _currentLSB);
   }
+  
+  return (float)val * _currentLSB;
+}
 
   float getPower() {
     return getBusVoltage() * getCurrent();

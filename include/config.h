@@ -35,10 +35,12 @@ public:
   float iHighThreshold    = 100.0f;
   float batteryCapacityAh = 100.0f;
   uint8_t batteryType     = 0;
-  float shuntOhm          = 0.00025f;
-  float maxCurrentA        = 200.0f;
+  float shuntOhm          = 0.00025f;    // 75mV classico → 0.00025Ω
+  float maxCurrentA        = 300.0f;      // per shunt 75mV
   float nominalVoltage     = 12.0f;
-  float currentScale       = 1.0f;
+  float currentScale       = 1.0f;        // CORRETTO: nessuna scala, INA228 è già accurato
+
+
 
   // Serbatoi
   uint16_t tankBlackThreshold = 750;
@@ -71,11 +73,12 @@ public:
   float currentMaxSeen =    0.0f;
   float ahUsedSaved    =    0.0f;
   void forceSaveAh(float currentAh);
-
+  uint8_t backlightLevel   = 8; 
   void load();
   void save();
   void saveMinMax(float vmin, float vmax, float imin, float imax);
   void saveAhUsed(float ah);
+  void getBatName(uint8_t idx, char* buf, uint8_t bufLen);
 
 private:
   Preferences prefs;

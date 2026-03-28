@@ -16,7 +16,7 @@ void Config::load() {
   maxCurrentA       = prefs.getFloat("maxI",      200.0f);
   nominalVoltage    = prefs.getFloat("nomV",      12.0f);
   currentScale      = prefs.getFloat("iScale",    1.0f);
-
+  backlightLevel    = prefs.getUChar("blLevel",   8);
   tankBlackThreshold  = prefs.getUShort("tBlkThr", 750);
   tankGrayThreshold   = prefs.getUShort("tGryThr", 940);
   enableTankMonitoring = prefs.getBool("tankEn",   true);
@@ -67,7 +67,7 @@ void Config::save() {
   prefs.putUShort("tBlkThr", tankBlackThreshold);
   prefs.putUShort("tGryThr", tankGrayThreshold);
   prefs.putBool("tankEn",    enableTankMonitoring);
-
+  prefs.putUChar("blLevel",  backlightLevel);
   prefs.putInt("pSDA",    pinI2C_SDA);
   prefs.putInt("pSCL",    pinI2C_SCL);
   prefs.putInt("pTBlk",   pinTankBlack);
@@ -105,4 +105,19 @@ void Config::forceSaveAh(float currentAh) {
   ahUsedSaved = currentAh;
   saveAhUsed(currentAh);
   Serial.printf("[Config] Salvataggio forzato pre-riavvio: %.2f Ah\n", currentAh);
+}
+
+void Config::getBatName(uint8_t idx, char* buf, uint8_t bufLen) {
+  const char* names[] = {
+    "AGM",
+    "GEL",
+    "Pb-open",
+    "LiFePO4",
+    "Li-Ion"
+  };
+  
+  if (idx >= BAT_TYPE_COUNT) idx = 0;
+  
+  strncpy(buf, names[idx], bufLen - 1);
+  buf[bufLen - 1] = '\0';
 }

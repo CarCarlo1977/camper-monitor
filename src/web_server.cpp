@@ -8,9 +8,274 @@
 #include <LittleFS.h>
 #include <WiFi.h>
 #include <Update.h>
+#include <Adafruit_SSD1306.h>
+#include <Adafruit_GFX.h>
+
 
 WebServerManager webServer;
 
+// ============================================================
+//  OLED Dashboard GERUI (Verde su Nero) - Integrato
+// ============================================================
+Adafruit_SSD1306 oledDisplay(128, 64, &Wire, -1);
+
+static unsigned long oledLastUpdate = 0;
+static unsigned long oledBlinkMs = 0;
+static bool oledBlinkState = false;
+
+// Funzioni forward declaration
+void initOLED();
+void updateOLED();
+void drawOLEDBatteryBar(float soc, int x, int y);
+void drawOLEDTankBar(uint8_t tankLevel, bool isGray, int x, int y);
+void drawOLEDWiFiBars(int x, int y);
+void initOLED() {
+  Serial.println("[OLED] Initializing SSD1306 1.3\" at 0x3C...");
+  
+  if (!oledDisplay.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("[OLED] ERROR: Display not found!");
+    return;
+  }
+
+  delay(100);
+  oledDisplay.clearDisplay();
+  delay(100);
+  
+
+  oledDisplay.dim(false);              // Full brightness
+  
+  oledDisplay.invertDisplay(true);
+  delay(500);
+  oledDisplay.invertDisplay(false);
+  
+  Serial.println("[OLED] ✓ Display found at 0x3C (128x64 pixels)");
+  
+  // === SPLASH SCREEN ===
+  oledDisplay.clearDisplay();
+  oledDisplay.setTextSize(2);
+  oledDisplay.setTextColor(SSD1306_WHITE);
+  oledDisplay.setCursor(10, 0);
+  oledDisplay.println("CAMPER");
+  oledDisplay.setCursor(15, 16);
+  oledDisplay.println("MONITOR");
+  
+  oledDisplay.setTextSize(1);
+  oledDisplay.setCursor(20, 35);
+  oledDisplay.println("v3.0");
+  
+  oledDisplay.setCursor(8, 48);
+  oledDisplay.println("Initializing...");
+  
+  oledDisplay.display();
+  delay(2000);
+  
+  // === WELCOME SCREEN ===
+  oledDisplay.clearDisplay();
+  oledDisplay.setTextSize(1);
+  oledDisplay.setTextColor(SSD1306_WHITE);
+  
+  oledDisplay.setCursor(2, 0);
+  oledDisplay.println("=== READY ===");
+  oledDisplay.setCursor(2, 10);
+  oledDisplay.println("OLED: OK");
+  oledDisplay.setCursor(2, 18);
+  oledDisplay.println("INA228: OK");
+  oledDisplay.setCursor(2, 26);
+  oledDisplay.println("WiFi: Connected");
+  oledDisplay.setCursor(2, 34);
+  oledDisplay.println("LCD: OK");
+  oledDisplay.setCursor(2, 42);
+  oledDisplay.println("Encoder: OK");
+  oledDisplay.setCursor(2, 50);
+  oledDisplay.println("System READY!");
+  
+  oledDisplay.display();
+  delay(3000);
+  
+  Serial.println("[OLED] ✓ OLED Dashboard READY!");
+}
+
+void updateOLED() {
+  unsigned long now = millis();
+  
+  // Update OLED ogni 1 secondo
+  if (now - oledLastUpdate < 1000) return;
+  oledLastUpdate = now;
+  
+  // Aggiorna blink state (lampeggia ogni 500ms)
+  if (now - oledBlinkMs >= 500) {
+    oledBlinkMs = now;
+    oledBlinkState = !oledBlinkState;
+  }
+  
+  oledDisplay.clearDisplay();
+  oledDisplay.setTextColor(SSD1306_WHITE);
+  
+  // ===== ROW 1: Voltage + Power + WiFi + CHG/DCH status (ALL ON FIRST ROW!) =====
+  oledDisplay.setTextSize(3);
+  oledDisplay.setCursor(0, 0);
+  oledDisplay.printf("%.1fV", sensors.voltageBus);
+  
+  // Power (size 3, center)
+  oledDisplay.setCursor(42, 0);
+  oledDisplay.printf("%.0fW", sensors.powerW);
+  
+  // WiFi indicator (right)
+  drawOLEDWiFiBars(100, 0);
+  
+  // Status with animated arrow - DRAWN with lines (not font)
+  oledDisplay.setTextSize(1);
+  if (sensors.currentA < -0.05f) {
+    // Charging: freccia in su (↑) disegnata e lampeggiante
+    if (oledBlinkState) {
+      drawUpArrow(100, 4);
+    }
+  } else if (sensors.currentA > 0.05f) {
+    // Discharging: freccia in giu (↓) disegnata e lampeggiante
+    if (oledBlinkState) {
+      drawDownArrow(100, 4);
+    }
+  } else {
+    // Idle: no arrow
+    oledDisplay.setCursor(95, 6);
+    oledDisplay.print("IDLE");
+  }
+  
+
+  // ===== ROW 2: Current & Ah =====
+  oledDisplay.setTextSize(1);
+  oledDisplay.setCursor(0, 22);
+  oledDisplay.printf("I: %.2fA", sensors.currentA);
+  
+  oledDisplay.setCursor(60, 22);
+  oledDisplay.printf("Ah:%.1f", sensors.ahUsed);
+  
+  // ===== ROW 3: SOC (HUGE size 3) =====
+  oledDisplay.setTextSize(3);
+  oledDisplay.setCursor(0, 28);
+  int socInt = constrain((int)sensors.batterySOC, 0, 100);
+  if (socInt < 10) oledDisplay.print(" ");
+  oledDisplay.printf("%d%%", socInt);
+  
+  // ===== ROW 4: Battery Bar =====
+  drawOLEDBatteryBar(sensors.batterySOC, 0, 44);
+  
+  // ===== DIVIDER LINE =====
+  oledDisplay.drawLine(0, 51, 127, 51, SSD1306_WHITE);
+  
+  // ===== ROW 5: Tanks (LABEL + BAR) =====
+  oledDisplay.setTextSize(1);
+  
+  // Gray Water Tank (LEFT)
+  oledDisplay.setCursor(2, 53);
+  oledDisplay.print("GRAY");
+  drawOLEDTankBar(sensors.tankGray, true, 2, 59);
+  
+  // Black Water Tank (RIGHT)
+  oledDisplay.setCursor(65, 53);
+  oledDisplay.print("BLACK");
+  drawOLEDTankBar(sensors.tankBlack, false, 65, 59);
+  
+  oledDisplay.display();
+}
+
+void drawOLEDBatteryBar(float soc, int x, int y) {
+  int barWidth = 54;
+  int barHeight = 5;
+  
+  oledDisplay.drawRect(x, y, barWidth, barHeight, SSD1306_WHITE);
+  oledDisplay.drawRect(x + barWidth, y + 1, 2, 3, SSD1306_WHITE);
+  
+  int fillWidth = constrain((int)((barWidth - 2) * soc / 100.0f), 0, barWidth - 2);
+  if (fillWidth > 1) {
+    oledDisplay.fillRect(x + 1, y + 1, fillWidth, barHeight - 2, SSD1306_WHITE);
+  }
+  
+  oledDisplay.setTextSize(1);
+  oledDisplay.setCursor(x + barWidth + 4, y);
+  int pct = (int)soc;
+  if (pct < 10) oledDisplay.print(" ");
+  if (pct < 100) oledDisplay.print(" ");
+  oledDisplay.printf("%d%%", pct);
+}
+
+void drawOLEDTankBar(uint8_t tankLevel, bool isGray, int x, int y) {
+  int barWidth = 25;
+  int barHeight = 4;
+  
+  oledDisplay.drawRect(x, y, barWidth, barHeight, SSD1306_WHITE);
+  
+  float fillPercent = 0;
+  
+  if (isGray) {
+    // Gray: 0=FULL, 1=2/3, 2=1/3, 3=EMPTY
+    if (tankLevel == 0) fillPercent = 1.0f;
+    else if (tankLevel == 1) fillPercent = 0.66f;
+    else if (tankLevel == 2) fillPercent = 0.33f;
+    else fillPercent = 0.0f;
+  } else {
+    // Black: 0=FULL, 1=OK
+    if (tankLevel == 0) fillPercent = 1.0f;
+    else fillPercent = 0.5f;
+  }
+  
+  fillPercent = constrain(fillPercent, 0.0f, 1.0f);
+  int fillWidth = (int)(barWidth * fillPercent);
+  
+  if (fillWidth > 2) {
+    oledDisplay.fillRect(x + 1, y + 1, fillWidth - 1, barHeight - 2, SSD1306_WHITE);
+  }
+  
+  oledDisplay.setTextSize(1);
+  oledDisplay.setCursor(x + 2, y + 5);
+  if (isGray) {
+    if (tankLevel == 0) oledDisplay.print("FULL");
+    else if (tankLevel == 1) oledDisplay.print("2/3");
+    else if (tankLevel == 2) oledDisplay.print("1/3");
+    else oledDisplay.print("--");
+  } else {
+    if (tankLevel == 0) oledDisplay.print("FULL");
+    else oledDisplay.print("OK");
+  }
+}
+
+void drawUpArrow(int x, int y) {
+  // Freccia in su disegnata con linee
+  // Asta verticale (3 pixel)
+  oledDisplay.drawLine(x, y + 8, x, y + 2, SSD1306_WHITE);
+  
+  // Punta sinistra (angolo alto sinistro)
+  oledDisplay.drawLine(x, y + 2, x - 3, y + 5, SSD1306_WHITE);
+  
+  // Punta destra (angolo alto destro)
+  oledDisplay.drawLine(x, y + 2, x + 3, y + 5, SSD1306_WHITE);
+}
+
+void drawDownArrow(int x, int y) {
+  // Freccia in giù disegnata con linee
+  // Asta verticale
+  oledDisplay.drawLine(x, y, x, y + 6, SSD1306_WHITE);
+  
+  // Punta sinistra (angolo basso sinistro)
+  oledDisplay.drawLine(x, y + 6, x - 3, y + 3, SSD1306_WHITE);
+  
+  // Punta destra (angolo basso destro)
+  oledDisplay.drawLine(x, y + 6, x + 3, y + 3, SSD1306_WHITE);
+}
+void drawOLEDWiFiBars(int x, int y) {
+  // WiFi indicator: 3 bars
+  // Bar 1 (short, left)
+  oledDisplay.drawRect(x, y + 6, 3, 3, SSD1306_WHITE);
+  oledDisplay.fillRect(x, y + 6, 3, 3, SSD1306_WHITE);
+  
+  // Bar 2 (medium, middle)
+  oledDisplay.drawRect(x + 5, y + 3, 3, 6, SSD1306_WHITE);
+  oledDisplay.fillRect(x + 5, y + 3, 3, 6, SSD1306_WHITE);
+  
+  // Bar 3 (tall, right)
+  oledDisplay.drawRect(x + 10, y, 3, 9, SSD1306_WHITE);
+  oledDisplay.fillRect(x + 10, y, 3, 9, SSD1306_WHITE);
+}
 void WebServerManager::init() {
   setupAPI();
   setupOTA();
