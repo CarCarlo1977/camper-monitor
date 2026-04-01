@@ -126,16 +126,30 @@ function dC() {
   cx.globalAlpha = 1
 }
 
-/* Gauges */
 function setGauge(level) {
-  var pct = level / 3 * 100;
-  var fill = document.getElementById('tkGrayFill');
-  if (fill) {
-    fill.style.width = pct + '%';
-    fill.className = 'tk-bar-fill' + (level === 0 ? ' danger' : level === 1 ? ' warn' : '');
+  const fill = document.getElementById('tkGrayFill');
+  const gv = document.getElementById('gVal');
+  if (!fill) return;
+
+  // Calcola % (0=5% per vedere il colore, 1=33%, 2=66%, 3=100%)
+  let pct = (level / 3) * 100;
+  if (level === 0) pct = 5; // Forza un minimo per vedere il rosso
+  
+  fill.style.width = pct + '%';
+
+  // Gestione colori
+  fill.classList.remove('warn', 'danger');
+  if (level === 0) {
+    fill.classList.add('danger'); // Rosso
+  } else if (level === 1) {
+    fill.classList.add('warn');   // Arancio
   }
-  var gv = document.getElementById('gVal');
-  if (gv) gv.textContent = level + '/3';
+  // Se level è 2 o 3, rimane il colore azzurro di default (var--ac)
+
+  if (gv) {
+    const labels = ['Riserva', '1/3', '2/3', 'Pieno'];
+    gv.textContent = labels[level] || (level + '/3');
+  }
 }
 
 function fU(s) {
@@ -481,28 +495,43 @@ async function scanWifi() {
   btn.textContent = "...";
   
   try {
-    const r = await fetch('/api/wifi-scan');
-    const nets = await r.json();
-    
-    list.innerHTML = "";
-    list.style.display = "block";
-    
-    if (nets.length === 0) {
-      list.innerHTML = "<div style='padding:5px; font-size:11px'>Nessuna rete trovata</div>";
+    let r = await fetch('/api/wifi-scan');
+    let nets = await r.json();
+
+    // Se il backend risponde con l'oggetto "Scanning...", aspettiamo e riproviamo
+    // senza dare errore all'utente.
+    if (nets.msg && nets.msg === "Scanning...") {
+      console.log("Scansione in corso, riprovo tra 2 secondi...");
+      await new Promise(res => setTimeout(res, 2000)); // Aspetta 2 secondi
+      r = await fetch('/api/wifi-scan');
+      nets = await r.json();
+    }
+
+    // Ora controlliamo se abbiamo finalmente un array
+    if (Array.isArray(nets)) {
+      list.innerHTML = "";
+      list.style.display = "block";
+      
+      if (nets.length === 0) {
+        list.innerHTML = "<div style='padding:5px; font-size:11px'>Nessuna rete trovata</div>";
+      } else {
+        nets.forEach(n => {
+          const div = document.createElement('div');
+          div.style = "padding:6px 10px; border-bottom:1px solid var(--brd); cursor:pointer; font-size:11px; display:flex; justify-content:space-between; align-items:center";
+          div.onclick = () => {
+            document.getElementById('c-wss').value = n.ssid;
+            list.style.display = "none";
+          };
+          div.innerHTML = `<span>${n.ssid}</span><span style="color:var(--dm)">${n.rssi} dBm</span>`;
+          list.appendChild(div);
+        });
+      }
     } else {
-      nets.forEach(n => {
-        const div = document.createElement('div');
-        div.style = "padding:6px 10px; border-bottom:1px solid var(--brd); cursor:pointer; font-size:11px; display:flex; justify-content:space-between; align-items:center";
-        // Al click inserisce il nome nell'input e nasconde la lista
-        div.onclick = () => {
-          document.getElementById('c-wss').value = n.ssid;
-          list.style.display = "none";
-        };
-        div.innerHTML = `<span>${n.ssid}</span><span style="color:var(--dm)">${n.rssi} dBm</span>`;
-        list.appendChild(div);
-      });
+      // Se dopo il secondo tentativo non è ancora un array, allora diamo errore
+      toast('Scansione lenta, riprova', 'info');
     }
   } catch (e) {
+    console.error("Errore Scan:", e);
     toast('Errore scansione', 'err');
   } finally {
     btn.disabled = false;

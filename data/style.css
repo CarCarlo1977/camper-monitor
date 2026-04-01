@@ -971,3 +971,71 @@ body {
 .sys-full .sys-val {
   font-size: clamp(10px, 1.6vmin, 13px);
 }
+
+/* --- FIX GRAFICA SERBATOI --- */
+.tk-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 10px 0;
+}
+
+.tk-meter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tk-lbl {
+  flex: 0 0 50px;
+  font-size: 10px;
+  color: var(--dm);
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+/* Il contenitore (lo sfondo della barra) */
+.tk-bar-wrap {
+  flex: 1;
+  height: 14px;
+  background: var(--bg3);
+  border: 1px solid var(--brd);
+  border-radius: 3px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* La parte colorata che si muove */
+.tk-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--ac);
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Colori di stato */
+.tk-bar-fill.warn { background: var(--yw); }   /* Arancio */
+.tk-bar-fill.danger { background: var(--rd); } /* Rosso */
+
+.tk-val {
+  flex: 0 0 55px;
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: right;
+}
+
+/* Quando è in danger (riserva), la facciamo pulsare leggermente */
+.tk-bar-fill.danger {
+  background: var(--rd) !important;
+  animation: pulse-red 2s infinite;
+}
+
+.tk-bar-fill.warn {
+  background: var(--yw) !important;
+}
+
+@keyframes pulse-red {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
