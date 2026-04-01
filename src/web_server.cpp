@@ -547,56 +547,88 @@ httpServer.on("/api/wifi-scan", HTTP_GET, [](AsyncWebServerRequest *req) {
 // === OTA via Web ===
 void WebServerManager::setupOTA() {
 
-  // Upload firmware (.bin)
+  // ═════════════════════════════════════════
+  //  FIRMWARE OTA
+  // ═════════════════════════════════════════
   httpServer.on("/api/ota/firmware", HTTP_POST,
-    [](AsyncWebServerRequest *req) {
-      bool ok = !Update.hasError();
-      req->send(200, "application/json",
-        ok ? "{\"ok\":true,\"msg\":\"Firmware aggiornato, riavvio...\"}"
-           : "{\"ok\":false,\"msg\":\"Errore upload firmware\"}");
-      if (ok) { delay(500); ESP.restart(); }
-    },
-    [](AsyncWebServerRequest *req, const String& filename, size_t index,
-       uint8_t *data, size_t len, bool final) {
-      if (!index) {
-        Serial.printf("[OTA] Firmware: %s (%u bytes)\n", filename.c_str(), req->contentLength());
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
-          Update.printError(Serial);
+    [](AsyncWebServerRequest *req) {},
+    NULL,
+    [](AsyncWebServerRequest *req, uint8_t *data, size_t len, size_t index, size_t total) {
+      
+      if (index == 0) {
+        Serial.printf("[OTA FIRMWARE] Inizio: %u bytes\n", total);
+        if (!Update.begin(total, U_FLASH)) {
+          Serial.println("[OTA FIRMWARE] begin() FAILED!");
+          req->send(400, "application/json", "{\"ok\":false,\"msg\":\"Errore begin\"}");
+          return;
         }
       }
-      if (Update.isRunning()) {
-        if (Update.write(data, len) != len) Update.printError(Serial);
+      
+      size_t written = Update.write(data, len);
+      if (written != len) {
+        Serial.printf("[OTA FIRMWARE] Write failed: %u/%u\n", written, len);
+        req->send(400, "application/json", "{\"ok\":false,\"msg\":\"Errore write\"}");
+        return;
       }
-      if (final) {
-        if (!Update.end(true)) Update.printError(Serial);
-        else Serial.println("[OTA] Firmware OK");
+      
+      float progress = (index + len) * 100.0f / total;
+      Serial.printf("[OTA FIRMWARE] %.1f%%\n", progress);
+      
+      if (index + len == total) {
+        Serial.println("[OTA FIRMWARE] Finalizzando...");
+        if (!Update.end(true)) {
+          Serial.println("[OTA FIRMWARE] end() FAILED!");
+          req->send(400, "application/json", "{\"ok\":false,\"msg\":\"Errore end\"}");
+          return;
+        }
+        
+        req->send(200, "application/json", 
+          "{\"ok\":true,\"msg\":\"Firmware OK, riavvio...\"}");
+        delay(500);
+        ESP.restart();
       }
     }
   );
 
-  // Upload filesystem (.bin)
+  // ═════════════════════════════════════════
+  //  FILESYSTEM OTA
+  // ═════════════════════════════════════════
   httpServer.on("/api/ota/filesystem", HTTP_POST,
-    [](AsyncWebServerRequest *req) {
-      bool ok = !Update.hasError();
-      req->send(200, "application/json",
-        ok ? "{\"ok\":true,\"msg\":\"Filesystem aggiornato, riavvio...\"}"
-           : "{\"ok\":false,\"msg\":\"Errore upload filesystem\"}");
-      if (ok) { delay(500); ESP.restart(); }
-    },
-    [](AsyncWebServerRequest *req, const String& filename, size_t index,
-       uint8_t *data, size_t len, bool final) {
-      if (!index) {
-        Serial.printf("[OTA] Filesystem: %s\n", filename.c_str());
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_SPIFFS)) {
-          Update.printError(Serial);
+    [](AsyncWebServerRequest *req) {},
+    NULL,
+    [](AsyncWebServerRequest *req, uint8_t *data, size_t len, size_t index, size_t total) {
+      
+      if (index == 0) {
+        Serial.printf("[OTA FILESYSTEM] Inizio: %u bytes\n", total);
+        if (!Update.begin(total, U_SPIFFS)) {
+          Serial.println("[OTA FILESYSTEM] begin() FAILED!");
+          req->send(400, "application/json", "{\"ok\":false,\"msg\":\"Errore begin\"}");
+          return;
         }
       }
-      if (Update.isRunning()) {
-        if (Update.write(data, len) != len) Update.printError(Serial);
+      
+      size_t written = Update.write(data, len);
+      if (written != len) {
+        Serial.printf("[OTA FILESYSTEM] Write failed: %u/%u\n", written, len);
+        req->send(400, "application/json", "{\"ok\":false,\"msg\":\"Errore write\"}");
+        return;
       }
-      if (final) {
-        if (!Update.end(true)) Update.printError(Serial);
-        else Serial.println("[OTA] Filesystem OK");
+      
+      float progress = (index + len) * 100.0f / total;
+      Serial.printf("[OTA FILESYSTEM] %.1f%%\n", progress);
+      
+      if (index + len == total) {
+        Serial.println("[OTA FILESYSTEM] Finalizzando...");
+        if (!Update.end(true)) {
+          Serial.println("[OTA FILESYSTEM] end() FAILED!");
+          req->send(400, "application/json", "{\"ok\":false,\"msg\":\"Errore end\"}");
+          return;
+        }
+        
+        req->send(200, "application/json", 
+          "{\"ok\":true,\"msg\":\"Filesystem OK, riavvio...\"}");
+        delay(500);
+        ESP.restart();
       }
     }
   );

@@ -101,7 +101,7 @@ void setup() {
   Serial.begin(115200);
   delay(500);
   Serial.println("\n======================================");
-  Serial.println("  CAMPER MONITOR ESP32 v3.0");
+  Serial.println("  CAMPER MONITOR ESP32 v3.3");
   Serial.println("======================================\n");
 
   config.load();
@@ -132,7 +132,7 @@ void setup() {
     oledDisplay.begin(SSD1306_SWITCHCAPVCC, oled_addr);
     initOLED();
   }
-  
+
   lcdManager.init();
   initOLED();
 

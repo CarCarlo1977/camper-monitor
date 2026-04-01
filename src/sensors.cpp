@@ -163,14 +163,18 @@ void SensorManager::updateCoulombCounter() {
     ahUsed += iCorr * dtH;
   }
 
-  // === NUOVA LOGICA: Auto-Sync al 100% ===
-  // Se tensione alta (piena) E corrente di ricarica molto bassa (satura)
+  // === NUOVA LOGICA: Auto-Sync SOLO a carica completa ===
   static unsigned long syncTimer = 0;
-  if (voltageBus >= (p.fullV - 0.1f) && currentA > 0.0f && currentA < 0.5f) {
+
+  // Azzera SOLO se:
+  // 1. Tensione è MOLTO alta (95% capacità minimo)
+  // 2. Corrente è BASSISSIMA (< 0.1A = carica quasi terminata)
+  // 3. Condizione stabile per 5 MINUTI
+  if (voltageBus >= (p.fullV - 0.05f) && currentA > 0.0f && currentA < 0.1f) {
     if (syncTimer == 0) syncTimer = millis();
-    if (now - syncTimer > 30000UL) { // 30 secondi di stabilità
-      ahUsed = 0.0f; 
-      if (now % 5000 < 50) Serial.println("[Sensors] AUTO-SYNC: Batteria 100%");
+    if (now - syncTimer > 300000UL) { // 5 minuti, non 30 secondi!
+      ahUsed = 0.0f;
+      if (now % 10000 < 50) Serial.println("[Sensors] AUTO-SYNC: Batteria 100%");
     }
   } else {
     syncTimer = 0;
